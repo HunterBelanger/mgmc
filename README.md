@@ -1,4 +1,5 @@
 # Multi-Group Monte Carlo Transport Code - MGMC
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.4585368.svg)](https://doi.org/10.5281/zenodo.4585368)
 ![License](https://img.shields.io/badge/License-CeCILL%20v2.1-brightgreen)
 
 MGMC is a 3D, multi-group, Monte Carlo transport code which solves the
