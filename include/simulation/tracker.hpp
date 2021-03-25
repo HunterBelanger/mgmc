@@ -96,53 +96,57 @@ class Tracker {
   geometry::Boundary get_nearest_boundary() const {
     auto bound = this->boundary();
 
-    double dist = bound.distance;
-    BoundaryType btype = bound.boundary_type;
-    std::shared_ptr<Surface> surf = bound.surface;
-    int32_t token = bound.token;
+    if (!this->is_lost()) {
+      double dist = bound.distance;
+      BoundaryType btype = bound.boundary_type;
+      std::shared_ptr<Surface> surf = bound.surface;
+      int32_t token = bound.token;
 
-    // Go up the entire tree
-    for (const auto& pad : tree) {
-      if (pad.type == GeoLilyPad::PadType::Lattice) {
-        auto lat_id = lattice_id_to_indx[pad.id];
-        double d = geometry::lattices[lat_id]->distance_to_tile_boundary(
-            pad.r_local, u_, pad.tile);
-        if (d < dist && std::abs(d - dist) > 100 * SURFACE_COINCIDENT) {
-          dist = d;
-          btype = BoundaryType::Normal;
-          surf = nullptr;
-          token = 0;
-        }
-      } else if (pad.type == GeoLilyPad::PadType::Cell) {
-        auto cell_id = cell_id_to_indx[pad.id];
-        auto d_t = geometry::cells[cell_id]->distance_to_boundary(
-            pad.r_local, u_, surface_token_);
-        if (d_t.first < dist &&
-            std::abs(d_t.first - dist) > 100 * SURFACE_COINCIDENT) {
-          dist = d_t.first;
-          token = std::abs(d_t.second);
-
-          if (token)
-            surf = geometry::surfaces[token - 1];
-          else
-            surf = nullptr;
-
-          if (surf)
-            btype = surf->boundary();
-          else
+      // Go up the entire tree
+      for (const auto& pad : tree) {
+        if (pad.type == GeoLilyPad::PadType::Lattice) {
+          auto lat_id = lattice_id_to_indx[pad.id];
+          double d = geometry::lattices[lat_id]->distance_to_tile_boundary(
+              pad.r_local, u_, pad.tile);
+          if (d < dist && std::abs(d - dist) > 100 * SURFACE_COINCIDENT) {
+            dist = d;
             btype = BoundaryType::Normal;
+            surf = nullptr;
+            token = 0;
+          }
+        } else if (pad.type == GeoLilyPad::PadType::Cell) {
+          auto cell_id = cell_id_to_indx[pad.id];
+          auto d_t = geometry::cells[cell_id]->distance_to_boundary(
+              pad.r_local, u_, surface_token_);
+          if (d_t.first < dist &&
+              std::abs(d_t.first - dist) > 100 * SURFACE_COINCIDENT) {
+            dist = d_t.first;
+            token = std::abs(d_t.second);
 
-          if (surf && surf->sign(pad.r_local, u_) < 0) token *= -1;
+            if (token)
+              surf = geometry::surfaces[token - 1];
+            else
+              surf = nullptr;
+
+            if (surf)
+              btype = surf->boundary();
+            else
+              btype = BoundaryType::Normal;
+
+            if (surf && surf->sign(pad.r_local, u_) < 0) token *= -1;
+          }
         }
       }
+
+      geometry::Boundary ret_bound(dist, surf, btype);
+      ret_bound.token = token;
+
+      // Distance to surface, and token, with sign indicating the positions
+      // current orientation to the surface.
+      return ret_bound;
+    } else {
+      return geometry::get_boundary(r_, u_, surface_token_);
     }
-
-    geometry::Boundary ret_bound(dist, surf, btype);
-    ret_bound.token = token;
-
-    // Distance to surface, and token, with sign indicating the positions
-    // current orientation to the surface.
-    return ret_bound;
   }
 
   void cross_surface(geometry::Boundary d_t) {
@@ -256,7 +260,7 @@ class Tracker {
     this->restart_get_current();
   }
 
-  // private:
+ private:
   Position r_;
   Direction u_;
   std::vector<GeoLilyPad> tree;

@@ -63,7 +63,7 @@ int XCylinder::sign(const Position& r, const Direction& u) const {
 double XCylinder::distance(const Position& r, const Direction& u,
                            bool on_surf) const {
   double a = u.y() * u.y() + u.z() * u.z();
-  if (on_surf || a == 0.) return INF;
+  if (a == 0.) return INF;
 
   double y = r.y() - y0;
   double z = r.z() - z0;
@@ -73,7 +73,7 @@ double XCylinder::distance(const Position& r, const Direction& u,
 
   if (quad < 0.)
     return INF;
-  else if (std::abs(c) < SURFACE_COINCIDENT) {
+  else if (on_surf || std::abs(c) < SURFACE_COINCIDENT) {
     if (k >= 0.)
       return INF;
     else

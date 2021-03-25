@@ -1,5 +1,4 @@
 # Multi-Group Monte Carlo Transport Code - MGMC
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.4585368.svg)](https://doi.org/10.5281/zenodo.4585368)
 ![License](https://img.shields.io/badge/License-CeCILL%20v2.1-brightgreen)
 
 MGMC is a 3D, multi-group, Monte Carlo transport code which solves the
@@ -50,13 +49,18 @@ license, please look at the `LICENSE` file for the French version, and the
 
 ## Install
 To build MGMC, a linux system with a C++17 compliant compiler is required (gcc
-7 works), along with cmake >= 3.9. A few third-party compile-time dependencies
-([docopt](http://docopt.org/)), [pcg](https://www.pcg-random.org),
+7 works), along with cmake >= 3.11. A few third-party compile-time dependencies
+([docopt](http://docopt.org/), [pcg](https://www.pcg-random.org),
 [ndarray](https://github.com/HunterBelanger/ndarray)) are shipped in the
 `vendor/` directory. In addition to these two basic requirements, the
 [yaml-cpp](https://github.com/jbeder/yaml-cpp) library with header files is
-also needed to build the library. On Ubuntu/Debian based distros, yaml-cpp may
-be installed with the following command:
+also needed to build the library. If not already installed, the library will be
+downloaded and built as part of the build process. If you prefer, you may
+optionally install the library using your distribution's package manager, and it
+should be automatically picked up by the build system instead.
+
+On Ubuntu/Debian based distros, yaml-cpp may be installed with the following
+command:
 ```
 $ sudo apt install libyaml-cpp-dev
 ```

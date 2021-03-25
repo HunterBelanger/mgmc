@@ -46,11 +46,11 @@
 // Versioning
 constexpr int VERSION_MAJOR = 0;
 constexpr int VERSION_MINOR = 1;
-constexpr int VERSION_PATCH = 0;
+constexpr int VERSION_PATCH = 1;
 constexpr bool DEVELOPMENT_VERSION = false;
 //#define DEV_VERSION  // TO BE REMOVED FOR NON-DEV VERSIONS
 constexpr int COPYRIGHT_YEAR = 2021;
-#define VERSION_STRING "0.1.0"
+#define VERSION_STRING "0.1.1"
 //  constexpr const char VERSION_STRING[] = {VERSION_MAJOR+'0', '.',
 //    VERSION_MINOR+'0','.',VERSION_PATCH+'0'};
 

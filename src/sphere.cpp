@@ -70,9 +70,9 @@ double Sphere::distance(const Position& r, const Direction& u,
   double c = x * x + y * y + z * z - R * R;
   double quad = k * k - c;
 
-  if (on_surf || quad < 0.) {
+  if (quad < 0.) {
     return INF;
-  } else if (std::abs(c) < SURFACE_COINCIDENT) {
+  } else if (on_surf || std::abs(c) < SURFACE_COINCIDENT) {
     // On surface
     if (k >= 0.)
       return INF;
