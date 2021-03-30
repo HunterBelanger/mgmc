@@ -1,4 +1,5 @@
 # Multi-Group Monte Carlo Transport Code - MGMC
+[![arXiv](https://img.shields.io/badge/arXiv-2103.13891-b31b1b.svg?style=flat)](https://arxiv.org/abs/2103.13891)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.4585368.svg)](https://doi.org/10.5281/zenodo.4585368)
 ![License](https://img.shields.io/badge/License-CeCILL%20v2.1-brightgreen)
 
@@ -20,7 +21,9 @@ Two different particle tracking methods are available to users: delta-tracking
 portion of the input file.  When using carter-tracking, if the majorant cross
 section is under-estimated, the particle population will not be stable unless
 particle weight cancellation is used. A mesh may be defined over which 3D
-regional cancellation is used to annihilate positive and negative weight.
+regional cancellation is used to annihilate positive and negative weight. A
+detailed explanation of the cancellation mechanics is given in the preprint
+article [here](https://arxiv.org/abs/2103.13891).
 
 Tallies for the scalar flux and power (fission rate) on a rectilinear mesh are
 available, both using a collision estimator. The scalar flux and power are
