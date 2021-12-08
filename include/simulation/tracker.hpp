@@ -36,14 +36,15 @@
  * pris connaissance de la licence CeCILL, et que vous en avez accepté les
  * termes.
  *============================================================================*/
-#ifndef MG_TRACKER_H
-#define MG_TRACKER_H
+#ifndef TRACKER_H
+#define TRACKER_H
 
 #include <geometry/cell.hpp>
 #include <geometry/geo_lily_pad.hpp>
 #include <geometry/geometry.hpp>
 #include <materials/material.hpp>
 #include <simulation/particle.hpp>
+#include <utils/error.hpp>
 #include <utils/parser.hpp>
 
 class Tracker {
@@ -62,20 +63,26 @@ class Tracker {
   Position r() const { return r_; }
   Direction u() const { return u_; }
 
-  void set_r(Position r) { r_ = r; }
+  void set_r(Position r) {
+    r_ = r;
+    surface_token_ = 0;
+  }
   void set_u(Direction u) { u_ = u; }
 
   void restart_get_current() {
     tree.clear();
     current_cell = geometry::get_cell(tree, r_, u_, surface_token_);
-    if (current_cell) current_mat = current_cell->material();
+    if (current_cell)
+      current_mat = current_cell->material();
+    else
+      current_mat = nullptr;
   }
 
   void move(double d) {
     r_ = r_ + d * u_;
 
     // Go update positions inside tree
-    for (auto& leaf : tree) {
+    for (auto &leaf : tree) {
       leaf.r_local = leaf.r_local + d * u_;
     }
 
@@ -99,11 +106,11 @@ class Tracker {
     if (!this->is_lost()) {
       double dist = bound.distance;
       BoundaryType btype = bound.boundary_type;
-      std::shared_ptr<Surface> surf = bound.surface;
+      int surface_index = bound.surface_index;
       int32_t token = bound.token;
 
       // Go up the entire tree
-      for (const auto& pad : tree) {
+      for (const auto &pad : tree) {
         if (pad.type == GeoLilyPad::PadType::Lattice) {
           auto lat_id = lattice_id_to_indx[pad.id];
           double d = geometry::lattices[lat_id]->distance_to_tile_boundary(
@@ -111,7 +118,7 @@ class Tracker {
           if (d < dist && std::abs(d - dist) > 100 * SURFACE_COINCIDENT) {
             dist = d;
             btype = BoundaryType::Normal;
-            surf = nullptr;
+            surface_index = -1;
             token = 0;
           }
         } else if (pad.type == GeoLilyPad::PadType::Cell) {
@@ -123,22 +130,25 @@ class Tracker {
             dist = d_t.first;
             token = std::abs(d_t.second);
 
-            if (token)
-              surf = geometry::surfaces[token - 1];
-            else
-              surf = nullptr;
+            if (token) {
+              surface_index = token - 1;
+            } else {
+              surface_index = -1;
+            }
 
-            if (surf)
-              btype = surf->boundary();
+            if (surface_index >= 0)
+              btype = geometry::surfaces[surface_index]->boundary();
             else
               btype = BoundaryType::Normal;
 
-            if (surf && surf->sign(pad.r_local, u_) < 0) token *= -1;
+            if (surface_index >= 0 &&
+                geometry::surfaces[surface_index]->sign(pad.r_local, u_) < 0)
+              token *= -1;
           }
         }
       }
 
-      geometry::Boundary ret_bound(dist, surf, btype);
+      geometry::Boundary ret_bound(dist, surface_index, btype);
       ret_bound.token = token;
 
       // Distance to surface, and token, with sign indicating the positions
@@ -177,14 +187,28 @@ class Tracker {
     for (auto it = tree.begin(); it != tree.end(); it++) {
       if (it->type == GeoLilyPad::PadType::Cell) {
         auto cell_indx = cell_id_to_indx[it->id];
-        auto cell = geometry::cells[cell_indx];
+        const auto &cell = geometry::cells[cell_indx];
         if (!cell->is_inside(it->r_local, u_, surface_token_)) {
+          if (cell->neighbors().size() > 0) {
+            // We have a neighbors list ! Lets try to use that
+            for (const auto &neighbor : cell->neighbors()) {
+              // Check if we are inside this neighbor
+              if (neighbor->is_inside(it->r_local, u_, surface_token_)) {
+                // Update the GeoLilyPad to be this cell
+                it->id = neighbor->id();
+                current_cell = neighbor;
+                current_mat = current_cell->material();
+                return;
+              }
+            }
+          }
+
           first_bad = it;
           break;
         }
       } else if (it->type == GeoLilyPad::PadType::Lattice) {
         auto lat_indx = lattice_id_to_indx[it->id];
-        auto lat = geometry::lattices[lat_indx];
+        const auto &lat = geometry::lattices[lat_indx];
         auto tile = lat->get_tile(it->r_local, u_);
         // Check if tile has changed
         if (it->tile[0] != tile[0] || it->tile[1] != tile[1] ||
@@ -205,7 +229,7 @@ class Tracker {
 
       // Now start at the last element, and get the new position
       auto uni_indx = universe_id_to_indx[tree.back().id];
-      auto uni = geometry::universes[uni_indx];
+      const auto &uni = geometry::universes[uni_indx];
       Position r_local = tree.back().r_local;
       tree.pop_back();
       current_cell = uni->get_cell(tree, r_local, u_, surface_token_);
@@ -220,9 +244,17 @@ class Tracker {
            r_.z() == tree.front().r_local.z();
   }
 
-  void do_reflection(Particle& p, geometry::Boundary surface) {
-    int32_t token = geometry::id_to_token(surface.surface->id());
-    if (surface.surface->sign(p.r(), p.u()) < 0) token *= -1;
+  void do_reflection(Particle &p, geometry::Boundary boundary) {
+    // Get the surface first
+    if (boundary.surface_index < 0) {
+      fatal_error("Bad surface index in Tracker::do_reflection", __FILE__,
+                  __LINE__);
+    }
+    const std::shared_ptr<Surface> &surface =
+        geometry::surfaces[boundary.surface_index];
+
+    int32_t token = geometry::id_to_token(surface->id());
+    if (surface->sign(p.r(), p.u()) < 0) token *= -1;
     this->set_surface_token(token);
 
     // Get new Position object to temporarily contain the current position
@@ -236,16 +268,16 @@ class Tracker {
     Direction u = p.u();
 
     // Get position of particle on surface
-    Position r_on_surf = p.r() + surface.distance * u;
+    Position r_on_surf = p.r() + boundary.distance * u;
 
-    Direction n = surface.surface->norm(r_on_surf);  // Get norm of surface
+    Direction n = surface->norm(r_on_surf);  // Get norm of surface
 
     // Get new direction after reflection
     Vector new_dir = u - 2. * (u * n) * n;  // Calc new direction
     Direction u_new = Direction{new_dir.x(), new_dir.y(), new_dir.z()};
 
     // Calc new previous position before reflections
-    double d = surface.distance + (p.r() - r_pre_refs).norm();
+    double d = boundary.distance + (p.r() - r_pre_refs).norm();
     Position r_prev = r_on_surf - d * u_new;
 
     // Update particle MUST BE DONE IN THIS ORDER

@@ -58,7 +58,7 @@ SlicePlot::SlicePlot(std::string fname, uint64_t pwidth, uint64_t pheight,
       image_matrix(),
       width_{width},
       height_{height},
-      rng{},
+      rng(2617257382),
       create_color_mutex{} {}
 
 // Other Methods
@@ -70,7 +70,9 @@ void SlicePlot::generate_plot() {
   image_matrix.resize(n_pixels);
 
 // Go through each pixel
+#ifdef _OPENMP
 #pragma omp parallel for schedule(dynamic)
+#endif
   for (size_t i = 0; i < plot_height_; i++) {
     for (size_t j = 0; j < plot_width_; j++) {
       // Get cell pointer for pixel location
@@ -132,7 +134,7 @@ void SlicePlot::write() const {
     file << "255\n";
 
     // Write all pixels from matrix. First get pointer
-    const char* img_data = reinterpret_cast<const char*>(image_matrix.data());
+    const char *img_data = reinterpret_cast<const char *>(image_matrix.data());
     // Then get number of bytes. Use sizeof to be sure works on all systems
     size_t nbytes = image_matrix.size() * sizeof(Pixel);
     // Write instead of streaming seems to be much faster
@@ -203,9 +205,9 @@ Position SlicePlot::get_pixel_position(uint64_t i, uint64_t j) const {
 }
 
 Pixel SlicePlot::get_random_color() {
-  uint8_t r = static_cast<uint8_t>(255.0 * rng.rand());
-  uint8_t g = static_cast<uint8_t>(255.0 * rng.rand());
-  uint8_t b = static_cast<uint8_t>(255.0 * rng.rand());
+  uint8_t r = static_cast<uint8_t>(255.0 * RNG::rand(rng));
+  uint8_t g = static_cast<uint8_t>(255.0 * RNG::rand(rng));
+  uint8_t b = static_cast<uint8_t>(255.0 * RNG::rand(rng));
 
   return {r, g, b};
 }

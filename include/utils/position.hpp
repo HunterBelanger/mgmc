@@ -46,29 +46,76 @@
 //----------------------------------------------------------------------------
 class Position : public Vector {
  public:
-  Position();
-  Position(double i_x, double i_y, double i_z);
+  Position() : Vector{0., 0., 0.} {}
+  Position(double i_x, double i_y, double i_z) : Vector{i_x, i_y, i_z} {};
   ~Position() = default;
 };  // Position
 
 //============================================================================
-// Overloaded Operator Declarations
-//----------------------------------------------------------------------------
-Position operator+(const Position& p1, const Position& p2);
-Position operator+(const Vector& v1, const Position& p2);
-Position operator+(const Position& p2, const Vector& v1);
+// Comparison Operators
+inline bool operator==(const Position &p1, const Position &p2) {
+  return (p1.x() == p2.x()) && (p1.y() == p2.y()) && (p1.z() == p2.z());
+}
 
-Position operator-(const Position& p1, const Position& p2);
-Position operator-(const Vector& v1, const Position& p2);
-Position operator-(const Position& p2, const Vector& v1);
+inline bool operator!=(const Position &p1, const Position &p2) {
+  return !(p1 == p2);
+}
 
-double operator*(const Position& p1, const Position& p2);
-double operator*(const Vector& p1, const Position& p2);
-double operator*(const Position& p2, const Vector& p1);
+//============================================================================
+// Addition Operators
+inline Position operator+(const Position &p1, const Position &p2) {
+  return Position(p1.x() + p2.x(), p1.y() + p2.y(), p1.z() + p2.z());
+}
 
-Position operator*(const Position& p, double d);
-Position operator*(double d, const Position& p);
-Position operator/(const Position& p, double d);
-std::ostream& operator<<(std::ostream& output, const Position& p);
+inline Position operator+(const Vector &v1, const Position &p2) {
+  return Position(v1.x() + p2.x(), v1.y() + p2.y(), v1.z() + p2.z());
+}
+
+inline Position operator+(const Position &p2, const Vector &v1) {
+  return Position(v1.x() + p2.x(), v1.y() + p2.y(), v1.z() + p2.z());
+}
+
+//============================================================================
+// Subtraction Operators
+inline Position operator-(const Position &p1, const Position &p2) {
+  return Position(p1.x() - p2.x(), p1.y() - p2.y(), p1.z() - p2.z());
+}
+
+inline Position operator-(const Vector &v1, const Position &p2) {
+  return Position(v1.x() - p2.x(), v1.y() - p2.y(), v1.z() - p2.z());
+}
+
+inline Position operator-(const Position &p2, const Vector &v1) {
+  return Position(p2.x() - v1.x(), p2.y() - v1.y(), p2.z() - v1.z());
+}
+
+//============================================================================
+// Dot Products
+inline double operator*(const Position &p1, const Position &p2) {
+  return p1.dot(p2);
+}
+
+inline double operator*(const Vector &p1, const Position &p2) {
+  return p1.dot(p2);
+}
+
+inline double operator*(const Position &p2, const Vector &p1) {
+  return p1.dot(p2);
+}
+
+inline Position operator*(const Position &p, double d) {
+  return Position(p.x() * d, p.y() * d, p.z() * d);
+}
+
+inline Position operator*(double d, const Position &p) { return p * d; }
+
+inline Position operator/(const Position &p, double d) {
+  return Position(p.x() / d, p.y() / d, p.z() / d);
+}
+
+inline std::ostream &operator<<(std::ostream &output, const Position &p) {
+  output << "(" << p.x() << "," << p.y() << "," << p.z() << ")";
+  return output;
+}
 
 #endif

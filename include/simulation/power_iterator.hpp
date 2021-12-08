@@ -36,40 +36,58 @@
  * pris connaissance de la licence CeCILL, et que vous en avez accepté les
  * termes.
  *============================================================================*/
-#ifndef MG_POWER_ITERATOR_H
-#define MG_POWER_ITERATOR_H
+#ifndef POWER_ITERATOR_H
+#define POWER_ITERATOR_H
 
+#include <simulation/cancelator.hpp>
 #include <simulation/simulation.hpp>
+#include <vector>
 
 class PowerIterator : public Simulation {
  public:
-  PowerIterator(std::shared_ptr<Tallies> i_t, std::shared_ptr<Settings> i_s,
-                std::shared_ptr<Transporter> i_tr,
+  PowerIterator(std::shared_ptr<Tallies> i_t, std::shared_ptr<Transporter> i_tr,
                 std::vector<std::shared_ptr<Source>> src)
-      : Simulation{i_t, i_s, i_tr, src}, bank{} {};
+      : Simulation(i_t, i_tr, src), bank(){};
+  PowerIterator(std::shared_ptr<Tallies> i_t, std::shared_ptr<Transporter> i_tr,
+                std::vector<std::shared_ptr<Source>> src,
+                std::shared_ptr<Cancelator> cncl)
+      : Simulation(i_t, i_tr, src), bank(), cancelator(cncl){};
   ~PowerIterator() = default;
 
-  void initialize();
+  void initialize() override final;
 
-  void run();
+  void run() override final;
 
-  void premature_kill();
+  void premature_kill() override final;
 
  private:
   std::vector<Particle> bank;
+  std::shared_ptr<Cancelator> cancelator = nullptr;
+  int Nnet = 0, Npos = 0, Nneg = 0, Ntot = 0;
+  int Wnet = 0, Wpos = 0, Wneg = 0, Wtot = 0;
+  int gen = 0;
 
-  void generation_output(int gen, int Nn, int Np, int Npos, int Nneg, int Wn,
-                         int Wp, int Wpos, int Wneg);
+  void check_time(int gen);
 
-  void write_source(std::vector<Particle>& bank, std::string source_fname);
+  bool out_of_time(int gen);
 
-  std::vector<std::string> split(std::string line);
+  void generation_output();
 
-  std::string remove(char c, std::string line);
+  void write_source(std::vector<Particle> &bank, std::string source_fname);
 
-  void perform_regional_cancelation(std::vector<Particle>& next_gen);
+  void normalize_weights(std::vector<BankedParticle> &next_gen);
+
+  void perform_regional_cancellation(std::vector<BankedParticle> &next_gen);
+
+  // Entropy calculation
+  void compute_pre_cancellation_entropy(std::vector<BankedParticle> &next_gen);
+  void compute_post_cancellation_entropy(std::vector<BankedParticle> &next_gen);
+  void zero_entropy();
 
   void print_header();
+
+  void sample_source_from_sources();
+  void load_source_from_file();
 
 };  // PowerIterator
 

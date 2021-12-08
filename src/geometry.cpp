@@ -37,6 +37,7 @@
  * termes.
  *============================================================================*/
 #include <geometry/geometry.hpp>
+#include <memory>
 #include <utils/constants.hpp>
 #include <utils/error.hpp>
 
@@ -50,56 +51,61 @@ std::vector<std::shared_ptr<Cell>> cells;
 std::shared_ptr<Universe> root_universe;
 std::vector<std::shared_ptr<Universe>> universes;
 std::vector<std::shared_ptr<Lattice>> lattices;
-
-// NDArray<CancelBin> cancel_bins;
-std::unordered_map<CancelBinKey, CancelBin> cancel_bins;
-Position cancel_bins_low;
-std::array<size_t, 3> cancel_bins_shape;
-std::array<double, 3> cancel_bins_pitch;
+std::shared_ptr<CellSearchMesh> cell_search_mesh = nullptr;
 
 //==========================================================================
 // Boundary struct constructor
-Boundary::Boundary(double d, std::shared_ptr<Surface> surf, BoundaryType bound)
-    : distance{d}, surface{surf}, boundary_type{bound}, token(0) {}
+Boundary::Boundary(double d, int index, BoundaryType bound)
+    : distance{d}, surface_index(index), boundary_type{bound}, token(0) {}
 
 //==========================================================================
 // Function Definitions
-std::shared_ptr<Cell> get_cell(const Position& r, const Direction& u,
+std::shared_ptr<Cell> get_cell(const Position &r, const Direction &u,
                                int32_t on_surf) {
   // Ask root_universe for cell. If no cell is found, answer
   // will be a nullptr
   return root_universe->get_cell(r, u, on_surf);
 }
 
-std::shared_ptr<Cell> get_cell(std::vector<GeoLilyPad>& stack,
-                               const Position& r, const Direction& u,
+Cell *get_cell_naked_ptr(const Position &r, const Direction &u,
+                         int32_t on_surf) {
+  // Ask root_universe for cell. If no cell is found, answer
+  // will be a nullptr
+  return root_universe->get_cell_naked_ptr(r, u, on_surf);
+}
+
+std::shared_ptr<Cell> get_cell(std::vector<GeoLilyPad> &stack,
+                               const Position &r, const Direction &u,
                                int32_t on_surf) {
   // Ask root_universe for cell. If no cell is found, answer
   // will be a nullptr
   return root_universe->get_cell(stack, r, u, on_surf);
 }
 
-Boundary get_boundary(const Position& r, const Direction& u, int32_t on_surf) {
+Boundary get_boundary(const Position &r, const Direction &u, int32_t on_surf) {
   // Define initial boundary which is first surface at INF
   double d_min = INF;
   BoundaryType btype = BoundaryType::Vacuum;
+  int32_t closest_surface_indx = -1;
 
-  std::shared_ptr<Surface> closest_surface = nullptr;
   // Go through all boundaries
   for (size_t i = 0; i < boundaries.size(); i++) {
     if (std::abs(on_surf) - 1 != static_cast<int>(boundaries[i])) {
       int32_t indx = boundaries[i];
       double dist = surfaces[indx]->distance(r, u, false);
       if (dist < d_min) {
-        closest_surface = surfaces[indx];
+        closest_surface_indx = indx;
         d_min = dist;
       }
     }
   }
 
-  if (closest_surface) btype = closest_surface->boundary();
+  if (closest_surface_indx >= 0) {
+    return {d_min, closest_surface_indx,
+            surfaces[closest_surface_indx]->boundary()};
+  }
 
-  return {d_min, closest_surface, btype};
+  return {d_min, closest_surface_indx, btype};
 }
 
 int32_t id_to_token(int32_t id) {
@@ -112,7 +118,14 @@ int32_t id_to_token(int32_t id) {
   return token;
 }
 
-void do_reflection(Particle& p, Boundary surface) {
+void do_reflection(Particle &p, Boundary boundary) {
+  // First, we should get the surface from the index
+  if (boundary.surface_index < 0) {
+    fatal_error("Surface index is less than zero in reflection.", __FILE__,
+                __LINE__);
+  }
+  const std::shared_ptr<Surface> &surface = surfaces[boundary.surface_index];
+
   // Get new Position object to temporarily contain the current position
   Position r_pre_refs = p.r();
 
@@ -124,16 +137,16 @@ void do_reflection(Particle& p, Boundary surface) {
   Direction u = p.u();
 
   // Get position of particle on surface
-  Position r_on_surf = p.r() + surface.distance * u;
+  Position r_on_surf = p.r() + boundary.distance * u;
 
-  Direction n = surface.surface->norm(r_on_surf);  // Get norm of surface
+  Direction n = surface->norm(r_on_surf);  // Get norm of surface
 
   // Get new direction after reflection
   Vector new_dir = u - 2. * (u * n) * n;  // Calc new direction
   Direction u_new = Direction{new_dir.x(), new_dir.y(), new_dir.z()};
 
   // Calc new previous position before reflections
-  double d = surface.distance + (p.r() - r_pre_refs).norm();
+  double d = boundary.distance + (p.r() - r_pre_refs).norm();
   Position r_prev = r_on_surf - d * u_new;
 
   // Update particle MUST BE DONE IN THIS ORDER

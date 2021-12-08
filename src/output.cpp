@@ -36,7 +36,14 @@
  * pris connaissance de la licence CeCILL, et que vous en avez accepté les
  * termes.
  *============================================================================*/
+#include <string>
+#include <utils/constants.hpp>
+#include <utils/mpi.hpp>
 #include <utils/output.hpp>
+
+#ifdef _OPENMP
+#include <omp.h>  // For print_header function
+#endif
 
 //============================================================================
 // Initialization of static members of Output singleton
@@ -44,11 +51,14 @@ std::shared_ptr<Output> Output::output_instance = nullptr;
 std::string Output::output_filename = "output.txt";
 std::mutex Output::instance_mutex;
 std::mutex Output::write_mutex;
+std::mutex Output::save_mutex;
 bool Output::fname_set = false;
 
 //============================================================================
 // Output Singleton Methods
-Output::Output() : out{} { out.open(output_filename); }
+Output::Output() : warnings_for_latter(), out() {
+  if (mpi::rank == 0) out.open(output_filename);
+}
 
 void Output::set_output_filename(std::string fname) {
   instance_mutex.lock();
@@ -70,10 +80,35 @@ std::shared_ptr<Output> Output::instance() {
   return output_instance;
 }
 
+void Output::save_warning(std::string message) {
+  save_mutex.lock();
+  warnings_for_latter.push_back(message);
+  save_mutex.unlock();
+}
+
+void Output::write_saved_warnings() {
+  if (!warnings_for_latter.empty()) {
+    std::cout << "\n";
+    if (out.is_open()) out << "\n";
+  }
+
+  for (const auto &wrn : warnings_for_latter) {
+    std::cout << " WARNING: " << wrn << "\n";
+    if (out.is_open()) out << " WARNING: " << wrn << "\n";
+  }
+
+  if (!warnings_for_latter.empty()) {
+    std::cout << "\n";
+    if (out.is_open()) out << "\n";
+  }
+
+  warnings_for_latter.clear();
+}
+
 void Output::write_error(std::string message) {
   write_mutex.lock();
   std::cerr << message << std::flush;
-  out << message << std::flush;
+  if (out.is_open()) out << message << std::flush;
   write_mutex.unlock();
 }
 
@@ -86,22 +121,29 @@ void print_header() {
 
   // Version info
   std::string info = "";
-  info += " Version        : " + std::string(VERSION_STRING);
+  info += " Version             : " + std::string(MGMC_VERSION_STRING);
   if (DEVELOPMENT_VERSION) {
     info += " (Development)\n";
   } else
     info += "\n";
 
   // Build date
-  info += " Build Date     : " + std::string(__DATE__) + " ";
+  info += " Build Date          : " + std::string(__DATE__) + " ";
   info += std::string(__TIME__) + "\n";
 
   // Current date and time
-  info += " Date/Time      : " + current_date_time() + "\n";
+  info += " Date/Time           : " + current_date_time() + "\n";
 
 #ifdef _OPENMP
-  info += " OpenMP Threads : " + std::to_string(omp_get_max_threads()) + "\n";
+  info +=
+      " OpenMP Threads      : " + std::to_string(omp_get_max_threads()) + "\n";
 #endif
+
+#ifdef MGMC_USE_MPI
+  info += " MPI Ranks           : " + std::to_string(mpi::size) + "\n";
+#endif
+
+  info += " MGMC Git Hash       : " MGMC_GIT_HASH "\n";
 
   output->write(info);
 }

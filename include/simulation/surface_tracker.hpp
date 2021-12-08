@@ -36,28 +36,21 @@
  * pris connaissance de la licence CeCILL, et que vous en avez accepté les
  * termes.
  *============================================================================*/
-#ifndef MG_SURFACE_TRACKER_H
-#define MG_SURFACE_TRACKER_H
+#ifndef SURFACE_TRACKER_H
+#define SURFACE_TRACKER_H
 
+#include <materials/nuclide.hpp>
 #include <simulation/transporter.hpp>
 
 class SurfaceTracker : public Transporter {
  public:
-  SurfaceTracker(std::shared_ptr<Tallies> i_t, std::shared_ptr<Settings> i_s)
-      : Transporter{i_t, i_s} {}
+  SurfaceTracker(std::shared_ptr<Tallies> i_t) : Transporter{i_t} {}
   ~SurfaceTracker() = default;
 
-  std::vector<Particle> transport(std::vector<Particle>& bank,
-                                  std::vector<std::shared_ptr<RNG>>& rngs);
-
- private:
-  void russian_roulette(Particle& p, std::shared_ptr<RNG> rng);
-
-  void scatter_particle(Particle& p, std::shared_ptr<Material> mat,
-                        std::shared_ptr<RNG> rng);
-
-  Particle fission_neutron(Particle& p, std::shared_ptr<Material> mat,
-                           std::shared_ptr<RNG> rng);
+  std::vector<BankedParticle> transport(
+      std::vector<Particle> &bank, bool noise = false,
+      std::vector<BankedParticle> *noise_bank = nullptr,
+      std::vector<std::shared_ptr<NoiseSource>> *noise_sources = nullptr);
 
 };  // SurfaceTracker
 

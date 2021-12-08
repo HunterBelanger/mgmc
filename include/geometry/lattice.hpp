@@ -77,6 +77,9 @@ class Lattice {
   virtual std::shared_ptr<Cell> get_cell(Position r, Direction u,
                                          int32_t on_surf) const = 0;
 
+  virtual Cell* get_cell_naked_ptr(Position r, Direction u,
+                                   int32_t on_surf) const = 0;
+
   virtual std::shared_ptr<Cell> get_cell(std::vector<GeoLilyPad>& stack,
                                          Position r, Direction u,
                                          int32_t on_surf) const = 0;

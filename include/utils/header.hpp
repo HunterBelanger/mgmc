@@ -40,57 +40,11 @@
 #define HEADER_H
 
 #include <string>
-#include <utils/constants.hpp>
 
-const std::string logo =
-    "\n"
-    "                         ███╗   ███╗ ██████╗ ███╗   ███╗ ██████╗\n"
-    "                         ████╗ ████║██╔════╝ ████╗ ████║██╔════╝\n"
-    "                         ██╔████╔██║██║  ███╗██╔████╔██║██║     \n"
-    "                         ██║╚██╔╝██║██║   ██║██║╚██╔╝██║██║     \n"
-    "                         ██║ ╚═╝ ██║╚██████╔╝██║ ╚═╝ ██║╚██████╗\n"
-    "                         ╚═╝     ╚═╝ ╚═════╝ ╚═╝     ╚═╝ ╚═════╝\n\n";
-
-const std::string header =
-    "                         Multi-Group Monte Carlo Transport Code\n\n";
-
-const std::string info =
-    " Copyright (C) 2021, Commissariat à l'énergie atomique et aux énergies "
-    "alternatives (CEA)\n"
-    " Released under the terms and conditions of the CeCILL-v2.1 license\n"
-    " Written by Hunter Belanger\n";
-
-const std::string help =
-    " Usage:\n"
-#ifdef _OPENMP
-    "   mgmc (--input FILE) [--threads NUM --output FILE]\n"
-#else
-    "   mgmc (--input FILE) [--output FILE]\n"
-#endif
-    "   mgmc (--input FILE --plot) [--threads NUM]\n"
-    "   mgmc (-h | --help)\n"
-    "   mgmc (-v | --version)\n\n"
-
-    " Options:\n"
-    "   -h --help         Show this help message\n"
-    "   -v --version      Show version number\n"
-    "   -i --input FILE   Set input file\n"
-#ifdef _OPENMP
-    "   -t --threads NUM  Set number of OpenMP threads\n"
-#endif
-    "   -o --output FILE  Set output file\n"
-    "   -p --plot         Generate plots from input file\n";
-
-const std::string version_string = " MGMC " VERSION_STRING
-                                   " "
-#if defined(DEV_VERSION)
-                                   "(Development)"
-#endif
-                                   "\n"
-#if defined(_OPENMP)
-                                   " Compiled with OpenMP.\n";
-#else
-                                   "";
-#endif
+extern const std::string logo;
+extern const std::string header;
+extern const std::string info;
+extern const std::string help;
+extern const std::string version_string;
 
 #endif

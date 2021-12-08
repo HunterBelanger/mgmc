@@ -40,20 +40,12 @@
 #define GEOMETRY_H
 
 #include <geometry/cell.hpp>
+#include <geometry/cell_search_mesh.hpp>
 #include <geometry/geo_lily_pad.hpp>
 #include <geometry/lattice.hpp>
 #include <geometry/surfaces/surface.hpp>
 #include <geometry/universe.hpp>
-#include <simulation/cancel_bin.hpp>
 #include <unordered_map>
-
-struct CancelBinKey {
-  size_t i, j, k;
-
-  bool operator==(const CancelBinKey& other) const {
-    return ((i == other.i) && (j == other.j) && (k == other.k));
-  }
-};
 
 namespace geometry {
 
@@ -78,50 +70,39 @@ extern std::vector<std::shared_ptr<Universe>> universes;
 // All lattices in problem
 extern std::vector<std::shared_ptr<Lattice>> lattices;
 
-// All cancelation bins for carter tracking
-extern std::unordered_map<CancelBinKey, CancelBin> cancel_bins;
-extern Position cancel_bins_low;
-extern std::array<size_t, 3> cancel_bins_shape;
-extern std::array<double, 3> cancel_bins_pitch;
+// Mesh for cell searches
+extern std::shared_ptr<CellSearchMesh> cell_search_mesh;
 
 //==========================================================================
 // Boundary struct to contain information about boundary crossings
 struct Boundary {
-  Boundary(double d, std::shared_ptr<Surface> surf, BoundaryType bound);
+  Boundary(double d, int index, BoundaryType bound);
 
   double distance;
-  std::shared_ptr<Surface> surface;
+  int surface_index;
   BoundaryType boundary_type;
   int32_t token;
 };
 
 //==========================================================================
 // Functions
-std::shared_ptr<Cell> get_cell(const Position& r, const Direction& u,
+std::shared_ptr<Cell> get_cell(const Position &r, const Direction &u,
                                int32_t on_surf = 0);
 
-std::shared_ptr<Cell> get_cell(std::vector<GeoLilyPad>& stack,
-                               const Position& r, const Direction& u,
+Cell *get_cell_naked_ptr(const Position &r, const Direction &u,
+                         int32_t on_surf = 0);
+
+std::shared_ptr<Cell> get_cell(std::vector<GeoLilyPad> &stack,
+                               const Position &r, const Direction &u,
                                int32_t on_surf = 0);
 
-Boundary get_boundary(const Position& r, const Direction& u,
+Boundary get_boundary(const Position &r, const Direction &u,
                       int32_t on_surf = 0);
 
 int32_t id_to_token(int32_t id);
 
-void do_reflection(Particle& p, Boundary surface);
+void do_reflection(Particle &p, Boundary boundary);
 
 }  // namespace geometry
-
-namespace std {
-template <>
-struct hash<CancelBinKey> {
-  std::size_t operator()(const CancelBinKey& key) const {
-    size_t Nz = geometry::cancel_bins_shape[2];
-    size_t Ny = geometry::cancel_bins_shape[1];
-    return key.k + Nz * (key.j + Ny * key.i);
-  }
-};
-}  // namespace std
 
 #endif

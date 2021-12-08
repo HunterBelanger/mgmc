@@ -43,6 +43,8 @@
 
 #include <map>
 #include <memory>
+#include <simulation/cancelator.hpp>
+#include <simulation/noise_source.hpp>
 #include <simulation/simulation.hpp>
 #include <simulation/source.hpp>
 #include <simulation/tallies.hpp>
@@ -59,18 +61,19 @@ extern std::map<uint32_t, size_t> lattice_id_to_indx;
 
 //===========================================================================
 // Object to build Simulation
-extern std::shared_ptr<Settings> settings;
 extern std::vector<std::shared_ptr<Source>> sources;
+extern std::vector<std::shared_ptr<NoiseSource>> noise_sources;
 extern std::shared_ptr<Tallies> tallies;
 extern std::shared_ptr<Transporter> transporter;
 extern std::shared_ptr<Simulation> simulation;
-extern bool using_carter_tracking;
+extern std::shared_ptr<Cancelator> cancelator;
+extern std::string xspath;
 
 // Main function to parse input file
 void parse_input_file(std::string fname);
 
 // Reads all materials
-void make_materials(YAML::Node input);
+void make_materials(YAML::Node input, bool plotting_mode = false);
 
 // Only reads and builds geometry (used for plotting).
 void make_geometry(YAML::Node input);
@@ -91,7 +94,7 @@ void make_settings(YAML::Node input);
 void make_tallies(YAML::Node input);
 
 // Reads into to make transporter
-void make_transporter(YAML::Node input);
+void make_transporter();
 
 // Reads regional cancellation bins
 void make_cancellation_bins(YAML::Node input);
@@ -99,8 +102,11 @@ void make_cancellation_bins(YAML::Node input);
 // Reads sources and populates sources vector
 void make_sources(YAML::Node input);
 
+// Reads noise sources and populates noise_sources vector
+void make_noise_sources(YAML::Node input);
+
 // Construct simulation pointer
-void make_simulation(YAML::Node input);
+void make_simulation();
 
 // Get the entropy mesh if given
 void make_entropy_mesh(YAML::Node entropy);

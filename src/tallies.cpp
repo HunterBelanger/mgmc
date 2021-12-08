@@ -37,99 +37,126 @@
  * termes.
  *============================================================================*/
 #include <simulation/tallies.hpp>
+#include <utils/mpi.hpp>
 #include <vector>
 
 Tallies::Tallies(double tot_wgt)
-    :
-
-      total_weight(tot_wgt),
+    : total_weight(tot_wgt),
       k_col_score(0.),
-      k_tot_score(0.),
+      k_abs_score(0.),
+      k_trk_score(0.),
       leak_score(0.),
-      k_eff(1.0),
-      k_tot(1.0),
-      k_avg(0.0),
-      k_var(0.0),
+      k_tot_score(0.),
+      k_col(1.0),
+      k_col_avg(0.),
+      k_col_var(0.),
+      k_abs(1.),
+      k_abs_avg(0.),
+      k_abs_var(0.),
+      k_trk(1.),
+      k_trk_avg(0.),
+      k_trk_var(0.),
       leak(0.0),
       leak_avg(0.0),
-      leak_var(0.0) {}
+      leak_var(0.0),
+      k_tot(1.0),
+      k_tot_avg(0.),
+      k_tot_var(0.),
+      mesh_tallies_() {}
 
-void Tallies::set_flux_tally(std::unique_ptr<FluxTally> ftally) {
-  flux_tally = std::move(ftally);
+void Tallies::add_mesh_tally(std::shared_ptr<MeshTally> mtally) {
+  mtally->set_net_weight(total_weight);
+  mesh_tallies_.push_back(mtally);
 }
 
-void Tallies::set_power_tally(std::unique_ptr<PowerTally> ptally) {
-  power_tally = std::move(ptally);
-}
-
-void Tallies::score_collision(const Particle& p,
-                              const std::shared_ptr<Material>& mat,
-                              bool converged) {
-  double Et = mat->Et(p.r(), p.E());
-  double Ef = mat->Ef(p.r(), p.E());
-  double nu = mat->nu(p.r(), p.E());
-
-  double scr = p.wgt() * nu * Ef / Et;
-
+void Tallies::score_k_col(double scr) {
+#ifdef _OPENMP
 #pragma omp atomic
+#endif
   k_col_score += scr;
+}
+
+void Tallies::score_k_abs(double scr) {
+#ifdef _OPENMP
 #pragma omp atomic
-  k_tot_score += std::abs(scr);
+#endif
+  k_abs_score += scr;
+}
 
-  // Only do spacial tallies if converged
-  if (converged) {
-    if (flux_tally) flux_tally->score_flux(p, mat);
+void Tallies::score_k_trk(double scr) {
+#ifdef _OPENMP
+#pragma omp atomic
+#endif
+  k_trk_score += scr;
+}
 
-    if (power_tally) power_tally->score_power(p, mat);
-  }
+void Tallies::score_k_tot(double scr) {
+#ifdef _OPENMP
+#pragma omp atomic
+#endif
+  k_tot_score += scr;
 }
 
 void Tallies::score_leak(double scr) {
+#ifdef _OPENMP
 #pragma omp atomic
+#endif
   leak_score += scr;
 }
 
-void Tallies::clear_generation(bool converged) {
+void Tallies::clear_generation() {
   k_col_score = 0.;
+  k_abs_score = 0.;
+  k_trk_score = 0.;
   k_tot_score = 0.;
   leak_score = 0.;
 
-  if (converged) {
-    if (flux_tally) flux_tally->clear_generation();
-
-    if (power_tally) power_tally->clear_generation();
-  }
+  for (auto &tally : mesh_tallies_) tally->clear_generation();
 }
 
 void Tallies::calc_gen_values() {
-  k_eff = k_col_score / total_weight;
-  k_tot = k_tot_score / total_weight;
+  // Must first perform a reduction to get all the score
+  // contributions from all processes.
+  mpi::Allreduce_sum(k_col_score);
+  mpi::Allreduce_sum(k_abs_score);
+  mpi::Allreduce_sum(k_trk_score);
+  mpi::Allreduce_sum(leak_score);
+  mpi::Allreduce_sum(k_tot_score);
+
+  k_col = k_col_score / total_weight;
+  k_abs = k_abs_score / total_weight;
+  k_trk = k_trk_score / total_weight;
   leak = leak_score / total_weight;
+  k_tot = k_tot_score / total_weight;
 }
 
-void Tallies::record_generation() {
+void Tallies::record_generation(double multiplier) {
   gen++;
 
-  double old_k_avg = k_avg;
-  k_avg = k_avg + (k_eff - k_avg) / static_cast<double>(gen);
-  k_var = k_var + ((k_eff - old_k_avg) * (k_eff - k_avg) - (k_var)) /
-                      static_cast<double>(gen);
+  update_avg_and_var(k_col, k_col_avg, k_col_var);
+  update_avg_and_var(k_abs, k_abs_avg, k_abs_var);
+  update_avg_and_var(k_trk, k_trk_avg, k_trk_var);
+  update_avg_and_var(leak, leak_avg, leak_var);
+  update_avg_and_var(k_tot, k_tot_avg, k_tot_var);
 
-  double old_leak_avg = leak_avg;
-  leak_avg = leak_avg + (leak - leak_avg) / static_cast<double>(gen);
-  leak_var =
-      leak_var + ((leak - old_leak_avg) * (leak - leak_avg) - (leak_var)) /
-                     static_cast<double>(gen);
-
-  if (flux_tally) flux_tally->record_generation(static_cast<double>(gen));
-
-  if (power_tally) power_tally->record_generation(static_cast<double>(gen));
+  for (auto &tally : mesh_tallies_)
+    tally->record_generation(static_cast<double>(gen), multiplier);
 }
 
-void Tallies::write_flux(std::string flux_fname) {
-  if (flux_tally) flux_tally->write_flux(flux_fname);
+void Tallies::write_tallies() {
+  for (auto &tally : mesh_tallies_) tally->write_tally();
 }
 
-void Tallies::write_power(std::string power_fname) {
-  if (power_tally) power_tally->write_power(power_fname);
+void Tallies::update_avg_and_var(double x, double &x_avg, double &x_var) {
+  double dgen = static_cast<double>(gen);
+  double x_avg_old = x_avg;
+  double x_var_old = x_var;
+
+  // Update average
+  x_avg = x_avg_old + (x - x_avg_old) / (dgen);
+
+  // Update variance
+  if (gen > 1)
+    x_var = x_var_old + ((x - x_avg_old) * (x - x_avg_old) / (dgen)) -
+            ((x_var_old) / (dgen - 1.));
 }

@@ -44,7 +44,7 @@ YCylinder::YCylinder(double x_, double z_, double r_, BoundaryType bound,
                      uint32_t i_id, std::string i_name)
     : Surface{bound, i_id, i_name}, x0{x_}, z0{z_}, R{r_} {}
 
-int YCylinder::sign(const Position& r, const Direction& u) const {
+int YCylinder::sign(const Position &r, const Direction &u) const {
   double x = r.x() - x0;
   double z = r.z() - z0;
   double eval = x * x + z * z - R * R;
@@ -60,7 +60,7 @@ int YCylinder::sign(const Position& r, const Direction& u) const {
   }
 }
 
-double YCylinder::distance(const Position& r, const Direction& u,
+double YCylinder::distance(const Position &r, const Direction &u,
                            bool on_surf) const {
   double a = u.x() * u.x() + u.z() * u.z();
   if (a == 0.) return INF;
@@ -89,7 +89,7 @@ double YCylinder::distance(const Position& r, const Direction& u,
   }
 }
 
-Direction YCylinder::norm(const Position& r) const {
+Direction YCylinder::norm(const Position &r) const {
   double x = r.x() - x0;
   double z = r.z() - z0;
   return {x, 0., z};

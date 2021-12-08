@@ -80,17 +80,23 @@ class Cell {
        uint32_t i_id, std::string i_name);
   ~Cell() = default;
 
-  bool is_inside(const Position& r, const Direction& u, int32_t on_surf) const;
+  bool is_inside(const Position &r, const Direction &u, int32_t on_surf) const;
 
-  std::pair<double, int32_t> distance_to_boundary(const Position& r,
-                                                  const Direction& u,
+  std::pair<double, int32_t> distance_to_boundary(const Position &r,
+                                                  const Direction &u,
                                                   int32_t on_surf) const;
 
-  std::shared_ptr<Material> material() const;
+  const std::shared_ptr<Material> &material() const;
 
   uint32_t id() const;
 
   std::string name() const;
+
+  const std::vector<std::shared_ptr<Cell>> neighbors() const {
+    return neighbors_;
+  }
+
+  void add_neighbor(std::shared_ptr<Cell> cell) { neighbors_.push_back(cell); }
 
  private:
   bool simple = true;
@@ -98,18 +104,20 @@ class Cell {
   uint32_t id_;
   std::string name_;
 
-  bool is_inside_simple(const Position& r, const Direction& u,
+  bool is_inside_simple(const Position &r, const Direction &u,
                         int32_t on_surf) const;
-  bool is_inside_complex(const Position& r, const Direction& u,
+  bool is_inside_complex(const Position &r, const Direction &u,
                          int32_t on_surf) const;
 
   std::shared_ptr<Material> material_;
+
+  std::vector<std::shared_ptr<Cell>> neighbors_{};
 
 };  // Cell
 
 //===========================================================================
 // Non-Member Functions
-std::vector<int32_t> infix_to_rpn(const std::vector<int32_t>& infix);
+std::vector<int32_t> infix_to_rpn(const std::vector<int32_t> &infix);
 
 void make_cell(YAML::Node cell_node);
 

@@ -36,40 +36,69 @@
  * pris connaissance de la licence CeCILL, et que vous en avez accepté les
  * termes.
  *============================================================================*/
-#ifndef MG_SETTINGS_H
-#define MG_SETTINGS_H
+#ifndef SETTINGS_H
+#define SETTINGS_H
 
+#include <pcg_random.hpp>
 #include <string>
+#include <utils/timer.hpp>
 
-class Settings {
- public:
-  Settings(){};
-  ~Settings() = default;
+namespace settings {
+enum class SimulationMode { K_EIGENVALUE, FIXED_SOURCE, NOISE };
+enum class TrackingMode { SURFACE_TRACKING, DELTA_TRACKING, CARTER_TRACKING };
+enum class EnergyMode { CE, MG };
 
-  int nparticles = 100000;
-  int ngenerations = 120;
-  int nignored = 20;
-  int ngroups = 7;
+extern int nparticles;
+extern int ngenerations;
+extern int nignored;
+extern int nskip;
+extern uint32_t ngroups;
+extern int n_cancel_noise_gens;
 
-  uint64_t rng_seed = 0;
-  bool use_pcg = true;
+extern Timer alpha_omega_timer;
+extern double max_time;
 
-  double wgt_cutoff = 0.25;
-  double wgt_survival = 1.0;
-  double wgt_split = 2.0;
+extern double min_energy;
+extern double max_energy;
+extern double target_at_rest_threshold;
 
-  bool converged = false;
+extern SimulationMode mode;
+extern TrackingMode tracking;
+extern EnergyMode energy_mode;
 
-  bool regional_cancellation = false;
+extern uint64_t rng_seed;
+extern uint64_t rng_stride;
+extern pcg32 rng;
 
-  bool save_source = false;
-  bool load_source_file = false;
+extern double wgt_cutoff;
+extern double wgt_survival;
+extern double wgt_split;
 
-  std::string output_file_name = "output.txt";
-  std::string flux_file_name = "flux";
-  std::string power_file_name = "power";
-  std::string source_file_name = "source.txt";
-  std::string in_source_file_name = "";
-};  // Settings
+extern double w_noise;
+extern double eta;
+extern double keff;
+
+extern bool converged;
+
+extern bool regional_cancellation;
+extern bool regional_cancellation_noise;
+extern bool inner_generations;
+extern bool branchless_noise;
+extern bool normalize_noise_source;
+extern bool rng_stride_warnings;
+extern bool save_source;
+extern bool load_source_file;
+
+// Energy bounds for multi-group mode
+extern std::vector<double> energy_bounds;
+extern std::vector<double> mg_speeds;
+extern std::vector<double> sample_xs_ratio;
+
+extern std::string output_file_name;
+extern std::string source_file_name;
+extern std::string in_source_file_name;
+
+void initialize_global_rng();
+}  // namespace settings
 
 #endif  // MG_SETTINGS_H

@@ -36,13 +36,12 @@
  * pris connaissance de la licence CeCILL, et que vous en avez accepté les
  * termes.
  *============================================================================*/
-#ifndef MG_TALLIES_H
-#define MG_TALLIES_H
+#ifndef TALLIES_H
+#define TALLIES_H
 
-#include <materials/material.hpp>
-#include <simulation/flux_tally.hpp>
+#include <materials/material_helper.hpp>
+#include <simulation/mesh_tally.hpp>
 #include <simulation/particle.hpp>
-#include <simulation/power_tally.hpp>
 #include <string>
 
 class Tallies {
@@ -50,47 +49,95 @@ class Tallies {
   Tallies(double tot_wgt);
   ~Tallies() = default;
 
-  void set_flux_tally(std::unique_ptr<FluxTally> ftally);
+  void add_mesh_tally(std::shared_ptr<MeshTally> mtally);
 
-  void set_power_tally(std::unique_ptr<PowerTally> ptally);
+  void score_collision(const Particle &p, MaterialHelper &mat, bool converged) {
+    // Only do spacial tallies if converged
+    if (converged && !mesh_tallies_.empty()) {
+      for (auto &tally : mesh_tallies_) tally->score_collision(p, mat);
+    }
+  }
 
-  void score_collision(const Particle& p, const std::shared_ptr<Material>& mat,
-                       bool converged);
+  void score_flight(const Particle &p, double d, MaterialHelper &mat,
+                    bool converged) {
+    if (converged && !mesh_tallies_.empty()) {
+      for (auto &tally : mesh_tallies_) tally->score_flight(p, d, mat);
+    }
+  }
 
+  void set_keff(double k) { keff_ = k; }
+  double keff() const { return keff_; }
+
+  void score_k_col(double scr);
+  void score_k_abs(double scr);
+  void score_k_trk(double scr);
   void score_leak(double scr);
+  void score_k_tot(double scr);
 
-  void clear_generation(bool converged);
+  void clear_generation();
 
   void calc_gen_values();
 
-  void record_generation();
+  void record_generation(double multiplier = 1.);
 
-  double keff() const { return k_eff; }
+  double kcol() const { return k_col; }
+  void set_kcol(double k) { k_col = k; }  // Only used for noise !
+  double kcol_avg() const { return k_col_avg; }
+  double kcol_err() const {
+    return std::sqrt(k_col_var / static_cast<double>(gen));
+  }
+
+  double kabs() const { return k_abs; }
+  double kabs_avg() const { return k_abs_avg; }
+  double kabs_err() const {
+    return std::sqrt(k_abs_var / static_cast<double>(gen));
+  }
+
+  double ktrk() const { return k_trk; }
+  double ktrk_avg() const { return k_trk_avg; }
+  double ktrk_err() const {
+    return std::sqrt(k_trk_var / static_cast<double>(gen));
+  }
+
+  double leakage() const { return leak; }
+  double leakage_avg() const { return leak_avg; }
+  double leakage_err() const {
+    return std::sqrt(leak_var / static_cast<double>(gen));
+  }
+
   double ktot() const { return k_tot; }
-  double kavg() const { return k_avg; }
-  double kerr() const { return std::sqrt(k_var / (static_cast<double>(gen))); }
+  double ktot_avg() const { return k_tot_avg; }
+  double ktot_err() const {
+    return std::sqrt(k_tot_var / static_cast<double>(gen));
+  }
 
-  void write_flux(std::string flux_fname);
-
-  void write_power(std::string power_fname);
+  void write_tallies();
 
   void set_total_weight(double tot_wgt) { total_weight = tot_wgt; }
 
+  int generations() const { return gen; }
+
  private:
   int gen = 0;
+  double keff_ = 1.;
 
   double total_weight;
 
   double k_col_score;
-  double k_tot_score;
+  double k_abs_score;
+  double k_trk_score;
   double leak_score;
+  double k_tot_score;  // Weird keff for NWDT
 
-  double k_eff, k_tot;
-  double k_avg, k_var;
+  double k_col, k_col_avg, k_col_var;
+  double k_abs, k_abs_avg, k_abs_var;
+  double k_trk, k_trk_avg, k_trk_var;
   double leak, leak_avg, leak_var;
+  double k_tot, k_tot_avg, k_tot_var;  // Weird keff for NWDT
 
-  std::unique_ptr<FluxTally> flux_tally = nullptr;
-  std::unique_ptr<PowerTally> power_tally = nullptr;
+  std::vector<std::shared_ptr<MeshTally>> mesh_tallies_;
+
+  void update_avg_and_var(double x, double &x_avg, double &x_var);
 
 };  // Tallies
 

@@ -48,12 +48,12 @@ class XPlane : public Surface {
   XPlane(double x, BoundaryType bound, uint32_t i_id, std::string i_name);
   ~XPlane() = default;
 
-  int sign(const Position& r, const Direction& u) const override;
+  int sign(const Position &r, const Direction &u) const override;
 
-  double distance(const Position& r, const Direction& u,
+  double distance(const Position &r, const Direction &u,
                   bool on_surf) const override;
 
-  Direction norm(const Position& r) const override;
+  Direction norm(const Position &r) const override;
 
  private:
   double x0;

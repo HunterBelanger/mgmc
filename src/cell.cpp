@@ -45,7 +45,7 @@ Cell::Cell(std::vector<int32_t> i_rpn, std::shared_ptr<Material> material,
     : rpn{}, id_{i_id}, name_{i_name}, material_{material} {
   // Check if simple or not
   simple = true;
-  for (const auto& el : i_rpn) {
+  for (const auto &el : i_rpn) {
     if (el == OP::COMP || el == OP::UNIN) {
       simple = false;
       break;
@@ -70,7 +70,7 @@ Cell::Cell(std::vector<int32_t> i_rpn, std::shared_ptr<Material> material,
   rpn.shrink_to_fit();
 }
 
-bool Cell::is_inside(const Position& r, const Direction& u,
+bool Cell::is_inside(const Position &r, const Direction &u,
                      int32_t on_surf) const {
   if (simple)
     return is_inside_simple(r, u, on_surf);
@@ -78,8 +78,8 @@ bool Cell::is_inside(const Position& r, const Direction& u,
     return is_inside_complex(r, u, on_surf);
 }
 
-std::pair<double, int32_t> Cell::distance_to_boundary(const Position& r,
-                                                      const Direction& u,
+std::pair<double, int32_t> Cell::distance_to_boundary(const Position &r,
+                                                      const Direction &u,
                                                       int32_t on_surf) const {
   double min_dist = INF;
   int32_t i_surf{0};
@@ -105,9 +105,9 @@ std::pair<double, int32_t> Cell::distance_to_boundary(const Position& r,
   return {min_dist, i_surf};
 }
 
-bool Cell::is_inside_simple(const Position& r, const Direction& u,
+bool Cell::is_inside_simple(const Position &r, const Direction &u,
                             int32_t on_surf) const {
-  for (const int32_t& token : rpn) {
+  for (const int32_t &token : rpn) {
     if (token == on_surf) {
     } else if (-token == on_surf)
       return false;
@@ -119,7 +119,7 @@ bool Cell::is_inside_simple(const Position& r, const Direction& u,
   return true;
 }
 
-bool Cell::is_inside_complex(const Position& r, const Direction& u,
+bool Cell::is_inside_complex(const Position &r, const Direction &u,
                              int32_t on_surf) const {
   std::vector<bool> stck(rpn.size());
   int i_stck = -1;
@@ -155,7 +155,7 @@ bool Cell::is_inside_complex(const Position& r, const Direction& u,
     return true;
 }
 
-std::shared_ptr<Material> Cell::material() const { return material_; }
+const std::shared_ptr<Material> &Cell::material() const { return material_; }
 
 uint32_t Cell::id() const { return id_; }
 
@@ -163,11 +163,11 @@ std::string Cell::name() const { return name_; }
 
 //============================================================================
 // Non-Member functions
-std::vector<int32_t> infix_to_rpn(const std::vector<int32_t>& infix) {
+std::vector<int32_t> infix_to_rpn(const std::vector<int32_t> &infix) {
   std::vector<int32_t> rpn;
   std::vector<int32_t> stack;
 
-  for (const auto& token : infix) {
+  for (const auto &token : infix) {
     if (token < OP::UNIN) {
       rpn.push_back(token);
     } else if (token < OP::R_PAR) {
@@ -296,12 +296,12 @@ void make_cell(YAML::Node cell_node) {
   }
   std::shared_ptr<Material> material = nullptr;
   // Make sure material exists
-  if (material_id_to_indx.find(mat_id) == material_id_to_indx.end()) {
+  if (materials.find(mat_id) == materials.end()) {
     std::string mssg =
         "Could not find material with ID " + std::to_string(mat_id) + ".";
     fatal_error(mssg, __FILE__, __LINE__);
   }
-  material = materials[material_id_to_indx[mat_id]];
+  material = materials[mat_id];
 
   // Get name
   std::string name;

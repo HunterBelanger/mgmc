@@ -140,6 +140,58 @@ std::shared_ptr<Cell> HexLattice::get_cell(Position r, Direction u,
                                                                 on_surf);
 }
 
+Cell* HexLattice::get_cell_naked_ptr(Position r, Direction u,
+                                     int32_t on_surf) const {
+  // Get coordinates in frame of center tile
+  Position r_o{r.x() - X_o, r.y() - Y_o, r.z() - Z_o};
+
+  // Get qr of hearest hex tile
+  std::array<int32_t, 3> qrz = get_tile(r_o, u);
+
+  // Get the ring of hex tile
+  uint32_t ring = get_ring({qrz[0], qrz[1]});
+
+  // See if valid ring or not
+  if (ring >= Nrings) {
+    // Invalid ring
+    if (outer_universe_index == -1) {
+      return nullptr;
+    } else {
+      return geometry::universes[outer_universe_index]->get_cell_naked_ptr(
+          r, u, on_surf);
+    }
+  }
+
+  // Check z bin now
+  if (qrz[2] < 0 || qrz[2] >= static_cast<int32_t>(Nz)) {
+    if (outer_universe_index == -1) {
+      return nullptr;
+    } else {
+      return geometry::universes[outer_universe_index]->get_cell_naked_ptr(
+          r, u, on_surf);
+    }
+  }
+
+  // Inside a lattice bin
+  size_t indx = linear_index({qrz[0], qrz[1]}, qrz[2]);
+
+  // If -1, send to outside universe
+  if (lattice_universes[indx] == -1) {
+    if (outer_universe_index == -1) {
+      return nullptr;
+    } else {
+      return geometry::universes[outer_universe_index]->get_cell_naked_ptr(
+          r, u, on_surf);
+    }
+  }
+
+  // Move coordinates to tile center
+  Position center = tile_center(qrz[0], qrz[1], qrz[2]);
+  Position r_tile = r_o - center;
+  return geometry::universes[lattice_universes[indx]]->get_cell_naked_ptr(
+      r_tile, u, on_surf);
+}
+
 std::shared_ptr<Cell> HexLattice::get_cell(std::vector<GeoLilyPad>& stack,
                                            Position r, Direction u,
                                            int32_t on_surf) const {
@@ -339,7 +391,7 @@ uint32_t HexLattice::get_ring(std::array<int32_t, 2> qr) const {
 double HexLattice::distance_to_tile_boundary(
     Position r_local, Direction u, std::array<int32_t, 3> tile) const {
   Position center = tile_center(tile[0], tile[1], tile[2]);
-  Position r_tile = r_local - r_tile;
+  Position r_tile = r_local - center;
 
   if (top_ == Top::Pointy)
     return distance_to_tile_boundary_pointy(r_tile, u);
@@ -503,7 +555,7 @@ void make_hex_lattice(YAML::Node latt_node, YAML::Node input) {
   if (latt_node["universes"] && latt_node["universes"].IsSequence()) {
     // Go through and check each universe
     for (size_t u = 0; u < latt_node["universes"].size(); u++) {
-      int32_t u_id = latt_node["universes"][u].as<uint32_t>();
+      int32_t u_id = latt_node["universes"][u].as<int32_t>();
       if (u_id == -1) {
         uni_indicies.push_back(u_id);
       } else if (universe_id_to_indx.find(u_id) == universe_id_to_indx.end()) {

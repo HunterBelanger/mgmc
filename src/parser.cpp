@@ -36,22 +36,32 @@
  * pris connaissance de la licence CeCILL, et que vous en avez accepté les
  * termes.
  *============================================================================*/
+#include <algorithm>
+#include <cstdlib>
+#include <filesystem>
 #include <geometry/cell_universe.hpp>
 #include <geometry/geometry.hpp>
 #include <geometry/hex_lattice.hpp>
 #include <geometry/lattice_universe.hpp>
 #include <geometry/rect_lattice.hpp>
 #include <geometry/surfaces/all_surfaces.hpp>
-#include <materials/const_material.hpp>
-#include <simulation/cancel_bin.hpp>
+#include <iomanip>
+#include <ios>
+#include <materials/nuclide.hpp>
 #include <simulation/carter_tracker.hpp>
 #include <simulation/delta_tracker.hpp>
 #include <simulation/entropy.hpp>
+#include <simulation/fixed_source.hpp>
+#include <simulation/mesh_tally.hpp>
+#include <simulation/noise.hpp>
 #include <simulation/power_iterator.hpp>
 #include <simulation/surface_tracker.hpp>
+#include <sstream>
+#include <string>
 #include <utils/error.hpp>
 #include <utils/output.hpp>
 #include <utils/parser.hpp>
+#include <utils/settings.hpp>
 #include <utils/timer.hpp>
 
 //===========================================================================
@@ -63,54 +73,66 @@ std::map<uint32_t, size_t> lattice_id_to_indx;
 
 //===========================================================================
 // Objects to build Simulation
-std::shared_ptr<Settings> settings = nullptr;
 std::vector<std::shared_ptr<Source>> sources;
+std::vector<std::shared_ptr<NoiseSource>> noise_sources;
 std::shared_ptr<Tallies> tallies = nullptr;
 std::shared_ptr<Transporter> transporter = nullptr;
 std::shared_ptr<Simulation> simulation = nullptr;
-bool using_carter_tracking = false;
+std::shared_ptr<Cancelator> cancelator = nullptr;
+std::string xspath;
 
 void parse_input_file(std::string fname) {
   // Start parsing timer
-  Timer::instance()->start_parsing_timer();
+  Timer parsing_timer;
+  parsing_timer.start();
 
-  Output::instance()->write(" Reading input file...\n");
+  Output::instance()->write(" Reading input file.\n");
 
   // Open input file
   YAML::Node input = YAML::LoadFile(fname);
 
-  // Read materials
+  make_settings(input);
+
+  Output::instance()->write(" Constructing simulation.\n");
   make_materials(input);
 
-  // Read and build geometry
   make_geometry(input);
-
-  make_settings(input);
 
   make_tallies(input);
 
-  make_transporter(input);
+  make_transporter();
 
-  make_cancellation_bins(input);
+  if (settings::regional_cancellation ||
+      settings::regional_cancellation_noise) {
+    make_cancellation_bins(input);
+  }
 
   make_sources(input);
 
-  make_simulation(input);
+  make_noise_sources(input);
+
+  make_simulation();
 
   // Only parse entropy mesh if there is an entropy entry
   if (input["entropy"] && input["entropy"].IsMap())
     make_entropy_mesh(input["entropy"]);
 
   // End parsing timer
-  Timer::instance()->end_parsing_timer();
+  parsing_timer.stop();
+  Output::instance()->write(
+      " Time to Parse Input : " + std::to_string(parsing_timer.elapsed_time()) +
+      " seconds.\n");
 }
 
-void make_materials(YAML::Node input) {
-  // Parse Surfaces
+void make_materials(YAML::Node input, bool plotting_mode) {
+  // Make an initially Null xsdir node
+  YAML::Node xsdir;
+
+  // Parse materials
   if (input["materials"] && input["materials"].IsSequence()) {
     // Go through all materials
     for (size_t s = 0; s < input["materials"].size(); s++) {
-      make_const_material(input["materials"][s]);
+      make_material(input["materials"][s], xsdir, plotting_mode);
     }
 
   } else {
@@ -118,6 +140,31 @@ void make_materials(YAML::Node input) {
     std::string mssg = "No materials are provided in input file.";
     fatal_error(mssg, __FILE__, __LINE__);
   }
+
+  // Once all materials have been read in, we need to go find the max
+  // and min energy grid values. To do this, we loop through all
+  // nuclides in the problem.
+  if (plotting_mode) return;
+
+  for (const auto &mat : materials) {
+    double emax = mat.second->max_energy();
+    double emin = mat.second->min_energy();
+
+    if (emin > settings::min_energy) {
+      settings::min_energy = emin;
+    }
+
+    if (emax < settings::max_energy) {
+      settings::max_energy = emax;
+    }
+  }
+
+  std::stringstream mssg;
+  mssg << " Min energy = " << std::setprecision(3) << std::scientific
+       << settings::min_energy << " MeV.\n";
+  mssg << " Max energy = " << settings::max_energy << " MeV.\n";
+
+  Output::instance()->write(mssg.str());
 }
 
 void make_geometry(YAML::Node input) {
@@ -176,6 +223,54 @@ void make_geometry(YAML::Node input) {
   } else {
     // If doesn't exist and isn't a scalar, kill program
     std::string mssg = "No root-universe is provided in input file.";
+    fatal_error(mssg, __FILE__, __LINE__);
+  }
+
+  // If there is only one universe, MGMC allows for the user to
+  // provide a neighbors list, which is a dictionary of entries, one for
+  // each cell, and each entry is a sequence of the IDs of all it's
+  // neighboring cells. This speeds up transport in certain cases.
+  if (geometry::universes.size() == 1 && input["neighbors"] &&
+      input["neighbors"].IsSequence()) {
+    out->write(" Reading neighbors lists.\n");
+
+    auto neighbors_array =
+        input["neighbors"].as<std::vector<std::vector<uint32_t>>>();
+
+    // Go through all cells in the geometry
+    for (const auto &cell : geometry::cells) {
+      // Get reference to vector of all neighbor IDs
+      const std::vector<uint32_t> &neighbors = neighbors_array[cell->id() - 1];
+
+      for (const auto &neighbor : neighbors) {
+        // Check if the neighbor doesn't exist
+        if (cell_id_to_indx.find(neighbor) == cell_id_to_indx.end()) {
+          // We couldn't find a cell with that ID, so we skip trying to
+          // add this neighbor.
+          continue;
+        }
+
+        // Get the cell index for the cell ID
+        auto nbr_indx = cell_id_to_indx[neighbor];
+
+        // Add neighbor to cell
+        cell->add_neighbor(geometry::cells[nbr_indx]);
+      }
+    }
+  } else if (geometry::universes.size() == 1 && input["neighbors"]) {
+    std::string mssg = "Invalid neighbors format.";
+    fatal_error(mssg, __FILE__, __LINE__);
+  }
+
+  // If there is a cell search mesh for the stochastic geometry, we now
+  // read that too.
+  if (geometry::universes.size() == 1 && input["cell-search-mesh"] &&
+      input["cell-search-mesh"].IsMap()) {
+    out->write(" Reading cell search mesh.\n");
+    geometry::cell_search_mesh =
+        make_cell_search_mesh(input["cell-search-mesh"]);
+  } else if (geometry::universes.size() == 1 && input["cell-search-mesh"]) {
+    std::string mssg = "Invalid cell-search-mesh format.";
     fatal_error(mssg, __FILE__, __LINE__);
   }
 }
@@ -284,109 +379,349 @@ void find_universe(YAML::Node input, uint32_t id) {
 }
 
 void make_settings(YAML::Node input) {
-  // Initialize settings pointer, all members are public
-  settings = std::make_shared<Settings>();
-
   if (input["settings"] && input["settings"].IsMap()) {
+    const auto &settnode = input["settings"];
+
+    // Get simulation type
+    std::string sim_type;
+    if (settnode["simulation"] && settnode["simulation"].IsScalar()) {
+      sim_type = settnode["simulation"].as<std::string>();
+    } else {
+      std::string mssg = "No simulation type provided.";
+      fatal_error(mssg, __FILE__, __LINE__);
+    }
+
+    if (sim_type == "k-eigenvalue") {
+      settings::mode = settings::SimulationMode::K_EIGENVALUE;
+    } else if (sim_type == "fixed-source") {
+      settings::mode = settings::SimulationMode::FIXED_SOURCE;
+    } else if (sim_type == "noise") {
+      settings::mode = settings::SimulationMode::NOISE;
+    } else {
+      std::string mssg = "Unknown simulation type " + sim_type + ".";
+      fatal_error(mssg, __FILE__, __LINE__);
+    }
+
+    // Get transport method
+    if (settnode["transport"] && settnode["transport"].IsScalar()) {
+      if (settnode["transport"].as<std::string>() == "delta-tracking") {
+        settings::tracking = settings::TrackingMode::DELTA_TRACKING;
+      } else if (settnode["transport"].as<std::string>() ==
+                 "surface-tracking") {
+        settings::tracking = settings::TrackingMode::SURFACE_TRACKING;
+      } else if (settnode["transport"].as<std::string>() == "carter-tracking") {
+        settings::tracking = settings::TrackingMode::CARTER_TRACKING;
+
+        // Read the sampling-xs entry in the input file
+        if (!input["sampling-xs"] || !input["sampling-xs"].IsSequence()) {
+          std::string mssg =
+              "Must provide the \"sampling-xs\" vector to use Carter Tracking.";
+          fatal_error(mssg, __FILE__, __LINE__);
+        }
+
+        settings::sample_xs_ratio =
+            input["sampling-xs"].as<std::vector<double>>();
+
+        // Make sure all ratios are positive
+        for (const auto &v : settings::sample_xs_ratio) {
+          if (v <= 0.) {
+            std::string mssg = "Sampling XS ratios must be > 0.";
+            fatal_error(mssg, __FILE__, __LINE__);
+          }
+        }
+      } else {
+        std::string mssg = "Invalid tracking method " +
+                           settnode["transport"].as<std::string>() + ".";
+        fatal_error(mssg, __FILE__, __LINE__);
+      }
+    } else {
+      // By default, use surface tracking
+      settings::tracking = settings::TrackingMode::SURFACE_TRACKING;
+    }
+
+    // Get energy mode type
+    if (settnode["energy-mode"] && settnode["energy-mode"].IsScalar()) {
+      if (settnode["energy-mode"].as<std::string>() == "multi-group") {
+        settings::energy_mode = settings::EnergyMode::MG;
+        Output::instance()->write(" Running in Multi-Group mode.\n");
+      } else if (settnode["energy-mode"].as<std::string>() ==
+                 "continuous-energy") {
+        std::string mssg = "Continuous-Energy Mode is not supported.";
+        fatal_error(mssg, __FILE__, __LINE__);
+      } else {
+        std::string mssg = "Invalid energy mode ";
+        mssg += settnode["energy-mode"].as<std::string>() + ".";
+        fatal_error(mssg, __FILE__, __LINE__);
+      }
+    } else {
+      // MG by default
+      settings::energy_mode = settings::EnergyMode::MG;
+      Output::instance()->write(" Running in Multi-Group mode.\n");
+    }
+
+    // If we are multi-group, get number of groups
+    if (settings::energy_mode == settings::EnergyMode::MG) {
+      if (!settnode["ngroups"] || !settnode["ngroups"].IsScalar()) {
+        std::string mssg =
+            "Number of groups for mutli-group mode not provided.";
+        fatal_error(mssg, __FILE__, __LINE__);
+      }
+      int ngrps = settnode["ngroups"].as<int>();
+
+      if (ngrps <= 0) {
+        std::string mssg = "Number of groups may not be negative.";
+        fatal_error(mssg, __FILE__, __LINE__);
+      }
+
+      settings::ngroups = static_cast<uint32_t>(ngrps);
+
+      // Must also get the energy-bounds for the groups
+      if (!settnode["energy-bounds"] ||
+          !settnode["energy-bounds"].IsSequence()) {
+        std::string mssg =
+            "No energy-bounds entry found in settings for multi-group mode.";
+        fatal_error(mssg, __FILE__, __LINE__);
+      }
+
+      if (settnode["energy-bounds"].size() != settings::ngroups + 1) {
+        std::string mssg =
+            "The number of energy-bounds must be equal to ngroups + 1.";
+        fatal_error(mssg, __FILE__, __LINE__);
+      }
+      settings::energy_bounds =
+          settnode["energy-bounds"].as<std::vector<double>>();
+
+      // Check bounds
+      if (!std::is_sorted(settings::energy_bounds.begin(),
+                          settings::energy_bounds.end())) {
+        std::string mssg =
+            "The energy-bounds for multi-group mode are not sorted.";
+        fatal_error(mssg, __FILE__, __LINE__);
+      }
+
+      // If we are using carter tracking, make sure we have the right number
+      // of sampling xs ratios !
+      if (settings::tracking == settings::TrackingMode::CARTER_TRACKING) {
+        if (settings::sample_xs_ratio.size() != settings::ngroups) {
+          std::string mssg =
+              "The number of energy groups does not match the size of "
+              "\"sampling-xs\".";
+          fatal_error(mssg, __FILE__, __LINE__);
+        }
+      }
+
+      // If we are running noise, we need to get the group speeds !
+      if (settings::mode == settings::SimulationMode::NOISE) {
+        if (!settnode["group-speeds"] ||
+            !settnode["group-speeds"].IsSequence() ||
+            !(settnode["group-speeds"].size() == settings::ngroups)) {
+          std::string mssg = "No valid group-speeds entry found in settings.";
+          fatal_error(mssg, __FILE__, __LINE__);
+        }
+
+        settings::mg_speeds =
+            settnode["group-speeds"].as<std::vector<double>>();
+
+        // Check that it is sorted and that there are no negative values
+        for (const auto &gs : settings::mg_speeds) {
+          if (gs <= 0.) {
+            std::string mssg = "Zero or negative group speed found.";
+            fatal_error(mssg, __FILE__, __LINE__);
+          }
+        }
+
+        if (!std::is_sorted(settings::mg_speeds.rbegin(),
+                            settings::mg_speeds.rend())) {
+          std::string mssg = "Group speeds are not in decreasing order.";
+          fatal_error(mssg, __FILE__, __LINE__);
+        }
+      }
+    }
+
     // Get number of particles
-    if (input["settings"]["nparticles"] &&
-        input["settings"]["nparticles"].IsScalar()) {
-      settings->nparticles = input["settings"]["nparticles"].as<int>();
+    if (settnode["nparticles"] && settnode["nparticles"].IsScalar()) {
+      settings::nparticles = settnode["nparticles"].as<int>();
     } else {
       std::string mssg = "Number of particles not specified in settings.";
       fatal_error(mssg, __FILE__, __LINE__);
     }
 
     // Get number of generations
-    if (input["settings"]["ngenerations"] &&
-        input["settings"]["ngenerations"].IsScalar()) {
-      settings->ngenerations = input["settings"]["ngenerations"].as<int>();
+    if (settnode["ngenerations"] && settnode["ngenerations"].IsScalar()) {
+      settings::ngenerations = settnode["ngenerations"].as<int>();
     } else {
       std::string mssg = "Number of generations not specified in settings.";
       fatal_error(mssg, __FILE__, __LINE__);
     }
 
     // Get number of ignored
-    if (input["settings"]["nignored"] &&
-        input["settings"]["nignored"].IsScalar()) {
-      settings->nignored = input["settings"]["nignored"].as<int>();
-    } else {
+    if (settnode["nignored"] && settnode["nignored"].IsScalar()) {
+      settings::nignored = settnode["nignored"].as<int>();
+    } else if (settnode["simulation"] &&
+               settnode["simulation"].as<std::string>() == "k-eigenvalue") {
       std::string mssg =
           "Number of ignored generations not specified in settings.";
       fatal_error(mssg, __FILE__, __LINE__);
+    } else {
+      settings::nignored = 0;
     }
 
-    // Get number of groups
-    if (input["settings"]["ngroups"] &&
-        input["settings"]["ngroups"].IsScalar()) {
-      settings->ngroups = input["settings"]["ngroups"].as<int>();
-    } else {
-      std::string mssg = "Number of groups not specified in settings.";
+    // Get number of skips between noise batches.
+    // Default is 10
+    if (settnode["nskip"] && settnode["nskip"].IsScalar()) {
+      settings::nskip = settnode["nskip"].as<int>();
+    }
+
+    // Get max run time
+    if (settnode["max-run-time"] && settnode["max-run-time"].IsScalar()) {
+      // Get runtime in minutes
+      double max_time_in_mins = settnode["max-run-time"].as<double>();
+      Output::instance()->write(
+          " Max Run Time: " + std::to_string(max_time_in_mins) + " mins.\n");
+
+      // Change minutes to seconds
+      settings::max_time = max_time_in_mins * 60.;
+    } else if (settnode["max-run-time"]) {
+      std::string mssg = "Invalid max-run-time entry in settings.";
       fatal_error(mssg, __FILE__, __LINE__);
     }
 
-    // Get flux out file
-    if (input["settings"]["fluxfile"] &&
-        input["settings"]["fluxfile"].IsScalar()) {
-      settings->flux_file_name =
-          input["settings"]["fluxfile"].as<std::string>();
-    } else {
-      settings->flux_file_name = "flux";
+    // Get the frequency and keff for noise simulations
+    if (settings::mode == settings::SimulationMode::NOISE) {
+      // Frequency
+      if (!settnode["noise-angular-frequency"] ||
+          !settnode["noise-angular-frequency"].IsScalar()) {
+        std::string mssg =
+            "No valid noise-angular-frequency in settings for noise "
+            "simulation.";
+        fatal_error(mssg, __FILE__, __LINE__);
+      }
+      settings::w_noise = settnode["noise-angular-frequency"].as<double>();
+
+      Output::instance()->write(
+          " Noise angular-frequency: " + std::to_string(settings::w_noise) +
+          " radians / s.\n");
+
+      // Keff
+      if (!settnode["keff"] || !settnode["keff"].IsScalar()) {
+        std::string mssg = "No valid keff in settings for noise simulation.";
+        fatal_error(mssg, __FILE__, __LINE__);
+      }
+      settings::keff = settnode["keff"].as<double>();
+
+      if (settings::keff <= 0.) {
+        std::string mssg = "Noise keff must be greater than zero.";
+        fatal_error(mssg, __FILE__, __LINE__);
+      }
+
+      Output::instance()->write(
+          " Noise keff: " + std::to_string(settings::keff) + "\n");
+
+      // Get the inner_generations option
+      if (settnode["inner-generations"] &&
+          settnode["inner-generations"].IsScalar()) {
+        settings::inner_generations = settnode["inner-generations"].as<bool>();
+      } else if (settnode["inner-generations"]) {
+        std::string mssg =
+            "Invalid \"inner-generations\" entry provided in settings.";
+        fatal_error(mssg, __FILE__, __LINE__);
+      }
+
+      // Get the branchless_noise option
+      if (settnode["branchless-noise"] &&
+          settnode["branchless-noise"].IsScalar()) {
+        settings::branchless_noise = settnode["branchless-noise"].as<bool>();
+      } else if (settnode["branchless-noise"]) {
+        std::string mssg =
+            "Invalid \"branchless-noise\" entry provided in settings.";
+        fatal_error(mssg, __FILE__, __LINE__);
+      }
+
+      // Get the normalize_noise_source option
+      if (settnode["normalize-noise-source"] &&
+          settnode["normalize-noise-source"].IsScalar()) {
+        settings::normalize_noise_source =
+            settnode["normalize-noise-source"].as<bool>();
+        if (settings::normalize_noise_source) {
+          Output::instance()->write(" Normalizing noise source\n");
+        }
+      } else if (settnode["normalize-noise-source"]) {
+        std::string mssg =
+            "Invalid \"normalize-noise-source\" entry provided in settings.";
+        fatal_error(mssg, __FILE__, __LINE__);
+      }
     }
 
-    // Get flux out file
-    if (input["settings"]["powerfile"] &&
-        input["settings"]["powerfile"].IsScalar()) {
-      settings->power_file_name =
-          input["settings"]["powerfile"].as<std::string>();
-    } else {
-      settings->power_file_name = "power";
+    // See if the user wants to see RNG stride warnings
+    if (settnode["rng-stride-warnings"] &&
+        settnode["rng-stride-warnings"].IsScalar()) {
+      settings::rng_stride_warnings =
+          settnode["rng-stride-warnings"].as<bool>();
+    } else if (settnode["rng-stride-warnings"]) {
+      std::string mssg =
+          "Invalid \"rng-stride-warnings\" entry provided in settings.";
+      fatal_error(mssg, __FILE__, __LINE__);
     }
 
     // Get name of source out file
-    if (input["settings"]["sourcefile"] &&
-        input["settings"]["sourcefile"].IsScalar()) {
-      settings->source_file_name =
-          input["settings"]["sourcefile"].as<std::string>();
-      settings->save_source = true;
+    if (settnode["sourcefile"] && settnode["sourcefile"].IsScalar()) {
+      settings::source_file_name = settnode["sourcefile"].as<std::string>();
+      settings::save_source = true;
     }
 
     // Get name of source in file
-    if (input["settings"]["insource"] &&
-        input["settings"]["insource"].IsScalar()) {
-      settings->in_source_file_name =
-          input["settings"]["insource"].as<std::string>();
-      settings->load_source_file = true;
+    if (settnode["insource"] && settnode["insource"].IsScalar()) {
+      settings::in_source_file_name = settnode["insource"].as<std::string>();
+      settings::load_source_file = true;
 
       // Make sure source file exists
-      std::ifstream source_fl(settings->in_source_file_name);
+      std::ifstream source_fl(settings::in_source_file_name);
       if (!source_fl.good()) {
         std::string mssg = "Could not find source input file with name \"";
-        mssg += settings->in_source_file_name + "\".";
+        mssg += settings::in_source_file_name + "\".";
         fatal_error(mssg, __FILE__, __LINE__);
       }
     }
 
     // Get seed for rng
-    if (input["settings"]["seed"] && input["settings"]["seed"].IsScalar()) {
-      settings->rng_seed = input["settings"]["seed"].as<uint64_t>();
+    if (settnode["seed"] && settnode["seed"].IsScalar()) {
+      settings::rng_seed = settnode["seed"].as<uint64_t>();
       Output::instance()->write(
-          " RNG seed = " + std::to_string(settings->rng_seed) + " ...\n");
+          " RNG seed = " + std::to_string(settings::rng_seed) + " ...\n");
     }
 
-    // Determine which RNG to use
-    if (input["settings"]["rng"] && input["settings"]["rng"].IsScalar()) {
-      std::string rng_type = input["settings"]["rng"].as<std::string>();
+    // Get stride for rng
+    if (settnode["stride"] && settnode["stride"].IsScalar()) {
+      settings::rng_stride = settnode["stride"].as<uint64_t>();
+      Output::instance()->write(
+          " RNG stride = " + std::to_string(settings::rng_seed) + " ...\n");
+    }
 
-      if (rng_type == "MT" || rng_type == "mt") {
-        Output::instance()->write(" Using Mersenne Twister as PRNG...\n");
-        settings->use_pcg = false;
-      } else if (rng_type != "PCG" && rng_type != "pcg") {
-        std::string mssg =
-            "Unknown random number generator identifier " + rng_type + ".";
-        fatal_error(mssg, __FILE__, __LINE__);
-      } else {
-        Output::instance()->write(" Using PCG as PRNG...\n");
+    // Get cancellation settings
+    settings::regional_cancellation = false;
+    if (settnode["cancellation"] && settnode["cancellation"].IsScalar()) {
+      if (settnode["cancellation"].as<bool>() == true) {
+        settings::regional_cancellation = true;
+      }
+    }
+    if (settings::regional_cancellation) {
+      Output::instance()->write(" Using regional cancellation.\n");
+    }
+
+    // Get number of noise generations to cancel
+    if (settnode["cancel-noise-gens"] &&
+        settnode["cancel-noise-gens"].IsScalar()) {
+      settings::n_cancel_noise_gens = settnode["cancel-noise-gens"].as<int>();
+    }
+
+    settings::regional_cancellation_noise = false;
+    if (settnode["noise-cancellation"] &&
+        settnode["noise-cancellation"].IsScalar()) {
+      if (settnode["noise-cancellation"].as<bool>() == true) {
+        settings::regional_cancellation_noise = true;
+        Output::instance()->write(
+            " Cancel noise gens : " +
+            std::to_string(settings::n_cancel_noise_gens) + " generations.\n");
       }
     }
 
@@ -399,296 +734,126 @@ void make_settings(YAML::Node input) {
 void make_tallies(YAML::Node input) {
   // Make base tallies object which is required
   tallies =
-      std::make_shared<Tallies>(static_cast<double>(settings->nparticles));
+      std::make_shared<Tallies>(static_cast<double>(settings::nparticles));
 
-  // Add flux tally if defined
-  if (input["flux"] && input["flux"].IsMap()) {
-    // Get shape
-    std::vector<int> shape;
-    if (input["flux"]["shape"] && input["flux"]["shape"].IsSequence() &&
-        input["flux"]["shape"].size() == 3) {
-      shape = input["flux"]["shape"].as<std::vector<int>>();
-    } else {
-      std::string mssg = "No shape provided for flux.";
-      fatal_error(mssg, __FILE__, __LINE__);
-    }
-
-    // Get lower position
-    std::vector<double> low_coords;
-    if (input["flux"]["low"] && input["flux"]["low"].IsSequence() &&
-        input["flux"]["low"].size() == 3) {
-      low_coords = input["flux"]["low"].as<std::vector<double>>();
-    } else {
-      std::string mssg = "No lower corner provided for flux.";
-      fatal_error(mssg, __FILE__, __LINE__);
-    }
-
-    // Get upper coordinates
-    std::vector<double> hi_coords;
-    if (input["flux"]["hi"] && input["flux"]["hi"].IsSequence() &&
-        input["flux"]["hi"].size() == 3) {
-      hi_coords = input["flux"]["hi"].as<std::vector<double>>();
-    } else {
-      std::string mssg = "No upper corner provided for flux.";
-      fatal_error(mssg, __FILE__, __LINE__);
-    }
-
-    Position low(low_coords[0], low_coords[1], low_coords[2]);
-    Position hi(hi_coords[0], hi_coords[1], hi_coords[2]);
-    int nx = shape[0];
-    int ny = shape[1];
-    int nz = shape[2];
-    int ng = settings->ngroups;
-
-    tallies->set_flux_tally(
-        std::make_unique<FluxTally>(low, hi, nx, ny, nz, ng));
+  if (!input["tallies"]) {
+    return;
+  } else if (!input["tallies"].IsSequence()) {
+    std::string mssg = "Tallies entry must be provided as a sequence.";
+    fatal_error(mssg, __FILE__, __LINE__);
   }
 
-  // Add power tally if defined
-  if (input["power"] && input["power"].IsMap()) {
-    // Get shape
-    std::vector<int> shape;
-    if (input["power"]["shape"] && input["power"]["shape"].IsSequence() &&
-        input["power"]["shape"].size() == 3) {
-      shape = input["power"]["shape"].as<std::vector<int>>();
-    } else {
-      std::string mssg = "No shape provided for power.";
-      fatal_error(mssg, __FILE__, __LINE__);
-    }
+  // Add all spatial mesh tallies to the tallies instance
+  for (size_t t = 0; t < input["tallies"].size(); t++) {
+    tallies->add_mesh_tally(make_mesh_tally(input["tallies"][t]));
+  }
 
-    // Get lower position
-    std::vector<double> low_coords;
-    if (input["power"]["low"] && input["power"]["low"].IsSequence() &&
-        input["power"]["low"].size() == 3) {
-      low_coords = input["power"]["low"].as<std::vector<double>>();
-    } else {
-      std::string mssg = "No lower corner provided for power.";
-      fatal_error(mssg, __FILE__, __LINE__);
-    }
-
-    // Get upper coordinates
-    std::vector<double> hi_coords;
-    if (input["power"]["hi"] && input["power"]["hi"].IsSequence() &&
-        input["power"]["hi"].size() == 3) {
-      hi_coords = input["power"]["hi"].as<std::vector<double>>();
-    } else {
-      std::string mssg = "No upper corner provided for power.";
-      fatal_error(mssg, __FILE__, __LINE__);
-    }
-
-    Position low(low_coords[0], low_coords[1], low_coords[2]);
-    Position hi(hi_coords[0], hi_coords[1], hi_coords[2]);
-    int nx = shape[0];
-    int ny = shape[1];
-    int nz = shape[2];
-
-    tallies->set_power_tally(std::make_unique<PowerTally>(low, hi, nx, ny, nz));
+  if (settings::mode == settings::SimulationMode::NOISE) {
+    tallies->set_keff(settings::keff);
   }
 }
 
-void make_transporter(YAML::Node input) {
-  if (input["settings"]["transport"] &&
-      input["settings"]["transport"].IsScalar()) {
-    if (input["settings"]["transport"].as<std::string>() == "delta-tracking") {
-      transporter =
-          std::make_shared<DeltaTracker>(tallies, settings, majorant_xs);
-    } else if (input["settings"]["transport"].as<std::string>() ==
-               "carter-tracking") {
-      // Get sampling XS ratios for carter tracking
-      std::vector<double> sampling_xs;
-      if (input["sampling-xs"] && input["sampling-xs"].IsSequence() &&
-          static_cast<int>(input["sampling-xs"].size()) == settings->ngroups) {
-        sampling_xs = input["sampling-xs"].as<std::vector<double>>();
-      } else {
-        std::string mssg = "No sampling cross section ratios provided.";
-        fatal_error(mssg, __FILE__, __LINE__);
-      }
+void make_transporter() {
+  switch (settings::tracking) {
+    case settings::TrackingMode::SURFACE_TRACKING:
+      transporter = std::make_shared<SurfaceTracker>(tallies);
+      Output::instance()->write(" Using Surface-Tracking.\n");
+      break;
 
-      // Multiply all ratios by true majorant, already calculated
-      for (size_t i = 0; i < majorant_xs.size(); i++)
-        sampling_xs[i] *= majorant_xs[i];
+    case settings::TrackingMode::DELTA_TRACKING:
+      transporter = std::make_shared<DeltaTracker>(tallies);
+      Output::instance()->write(" Using Delta-Tracking.\n");
+      break;
 
-      transporter =
-          std::make_shared<CarterTracker>(tallies, settings, sampling_xs);
-      using_carter_tracking = true;
-    } else if (input["settings"]["transport"].as<std::string>() ==
-               "surface-tracking") {
-      transporter = std::make_shared<SurfaceTracker>(tallies, settings);
-    } else {
-      std::string mssg = "Invalid tracking method " +
-                         input["settings"]["transport"].as<std::string>() + ".";
-      fatal_error(mssg, __FILE__, __LINE__);
-    }
-  } else {
-    // Use delta-tracking as default
-    transporter =
-        std::make_shared<DeltaTracker>(tallies, settings, majorant_xs);
+    case settings::TrackingMode::CARTER_TRACKING:
+      transporter = std::make_shared<CarterTracker>(tallies);
+      Output::instance()->write(" Using Carter-Tracking.\n");
+      break;
   }
 }
 
 void make_cancellation_bins(YAML::Node input) {
-  // First check seetings and see if using regional cancelation
-  if (input["settings"]["cancellation"] &&
-      input["settings"]["cancellation"].IsScalar()) {
-    if (input["settings"]["cancellation"].as<bool>() == true) {
-      settings->regional_cancellation = true;
-
-      // Get regional cancelation bins info
-
-      // Get shape
-      std::vector<size_t> shape;
-      if (input["cancellation-bins"]["shape"] &&
-          input["cancellation-bins"]["shape"].IsSequence() &&
-          input["cancellation-bins"]["shape"].size() == 3) {
-        shape = input["cancellation-bins"]["shape"].as<std::vector<size_t>>();
-      } else {
-        std::string mssg = "No shape given for cancellation bins.";
-        fatal_error(mssg, __FILE__, __LINE__);
-      }
-
-      // Get low corner
-      std::vector<double> low;
-      if (input["cancellation-bins"]["low"] &&
-          input["cancellation-bins"]["low"].IsSequence() &&
-          input["cancellation-bins"]["low"].size() == 3) {
-        low = input["cancellation-bins"]["low"].as<std::vector<double>>();
-      } else {
-        std::string mssg = "No low given for cancellation bins.";
-        fatal_error(mssg, __FILE__, __LINE__);
-      }
-
-      // Get hi corner
-      std::vector<double> hi;
-      if (input["cancellation-bins"]["hi"] &&
-          input["cancellation-bins"]["hi"].IsSequence() &&
-          input["cancellation-bins"]["hi"].size() == 3) {
-        hi = input["cancellation-bins"]["hi"].as<std::vector<double>>();
-      } else {
-        std::string mssg = "No hi given for cancellation bins.";
-        fatal_error(mssg, __FILE__, __LINE__);
-      }
-
-      // Calculate pitch in z direction based on hi and low corners and shape
-      double px = (hi[0] - low[0]) / static_cast<double>(shape[0]);
-      double py = (hi[1] - low[1]) / static_cast<double>(shape[1]);
-      double pz = (hi[2] - low[2]) / static_cast<double>(shape[2]);
-
-      // Set the global parameters in geometry namespace
-      geometry::cancel_bins_low = {low[0], low[1], low[2]};
-      geometry::cancel_bins_shape = {shape[0], shape[1], shape[2]};
-      geometry::cancel_bins_pitch = {px, py, pz};
-    }
+  if (!input["cancelator"] || !input["cancelator"].IsMap()) {
+    std::string mssg =
+        "Regional cancelation is activated, but no cancelator entry is "
+        "provided.";
+    fatal_error(mssg, __FILE__, __LINE__);
   }
+
+  // Make sure we are using cancelation with a valid transport method !
+  if (settings::mode == settings::SimulationMode::FIXED_SOURCE) {
+    std::string mssg =
+        "Cancellation may only be used with k-eigenvalue, "
+        "modified-fixed-source, or noise problems.";
+    fatal_error(mssg, __FILE__, __LINE__);
+  }
+
+  // Make cancelator will check the cancelator type agains the tracking type.
+  // This is because exact cancelators may only be used with DT, or Carter
+  // Tracking, while the approximate cancelator can be used with any tracking
+  // method.
+  cancelator = make_cancelator(input["cancelator"]);
 }
 
 void make_sources(YAML::Node input) {
   if (input["sources"] && input["sources"].IsSequence()) {
     // Do all sources
     for (size_t s = 0; s < input["sources"].size(); s++) {
-      // Get weight
-      double weight = 1.;
-      if (input["sources"][s]["weight"] &&
-          input["sources"][s]["weight"].IsScalar()) {
-        weight = input["sources"][s]["weight"].as<double>();
-      } else {
-        std::string mssg = "No weight given to source.";
-        fatal_error(mssg, __FILE__, __LINE__);
-      }
-
-      // Get chi
-      std::vector<double> chi;
-      if (input["sources"][s]["chi"] &&
-          input["sources"][s]["chi"].IsSequence() &&
-          static_cast<int>(input["sources"][s]["chi"].size()) <=
-              settings->ngroups) {
-        chi = input["sources"][s]["chi"].as<std::vector<double>>();
-      } else {
-        std::string mssg = "No chi given to source.";
-        fatal_error(mssg, __FILE__, __LINE__);
-      }
-
-      // Get type
-      std::string type;
-      if (input["sources"][s]["type"] &&
-          input["sources"][s]["type"].IsScalar()) {
-        type = input["sources"][s]["type"].as<std::string>();
-      } else {
-        std::string mssg = "No type given to source.";
-        fatal_error(mssg, __FILE__, __LINE__);
-      }
-
-      // Construct source and add to vector
-      if (type == "box") {
-        // Get low corner
-        std::vector<double> low_coords;
-        if (input["sources"][s]["low"] &&
-            input["sources"][s]["low"].IsSequence() &&
-            input["sources"][s]["low"].size() == 3) {
-          low_coords = input["sources"][s]["low"].as<std::vector<double>>();
-        } else {
-          std::string mssg = "Now lower coordinates given for box source.";
-          fatal_error(mssg, __FILE__, __LINE__);
-        }
-
-        // Get hi corner
-        std::vector<double> hi_coords;
-        if (input["sources"][s]["hi"] &&
-            input["sources"][s]["hi"].IsSequence() &&
-            input["sources"][s]["hi"].size() == 3) {
-          hi_coords = input["sources"][s]["hi"].as<std::vector<double>>();
-        } else {
-          std::string mssg = "Now lower coordinates given for box source.";
-          fatal_error(mssg, __FILE__, __LINE__);
-        }
-
-        // Add to vector
-        Position low(low_coords[0], low_coords[1], low_coords[2]);
-        Position hi(hi_coords[0], hi_coords[1], hi_coords[2]);
-        sources.push_back(std::make_shared<BoxSource>(low, hi, chi, weight));
-      } else if (type == "point") {
-        // Get coordinates
-        std::vector<double> coords;
-        if (input["sources"][s]["coords"] &&
-            input["sources"][s]["coords"].IsSequence() &&
-            input["sources"][s]["coords"].size() == 3) {
-          coords = input["sources"][s]["coords"].as<std::vector<double>>();
-        } else {
-          std::string mssg = "No coordinates given for point source.";
-          fatal_error(mssg, __FILE__, __LINE__);
-        }
-
-        // Add to vector
-        Position point(coords[0], coords[1], coords[2]);
-        sources.push_back(std::make_shared<PointSource>(point, chi, weight));
-      } else {
-        std::string mssg = "Unknown source type " + type + ".";
-        fatal_error(mssg, __FILE__, __LINE__);
-      }
+      sources.push_back(make_source(input["sources"][s]));
     }
-  } else if (!input["settings"]["insource"]) {
+  } else if (settings::mode == settings::SimulationMode::FIXED_SOURCE ||
+             !settings::load_source_file) {
     // No source file given
     std::string mssg = "No source specified for problem.";
     fatal_error(mssg, __FILE__, __LINE__);
   }
 }
 
-void make_simulation(YAML::Node input) {
-  // Get simulation type
-  std::string sim_type;
-  if (input["settings"]["simulation"] &&
-      input["settings"]["simulation"].IsScalar()) {
-    sim_type = input["settings"]["simulation"].as<std::string>();
-  } else {
-    std::string mssg = "No simulation type provided.";
+void make_noise_sources(YAML::Node input) {
+  if (input["noise-sources"] && input["noise-sources"].IsSequence()) {
+    // Do all sources
+    for (size_t s = 0; s < input["noise-sources"].size(); s++) {
+      noise_sources.push_back(make_noise_source(input["noise-sources"][s]));
+    }
+  } else if (settings::mode == settings::SimulationMode::NOISE) {
+    // No source file given
+    std::string mssg = "No valid noise-source entry for noise problem.";
     fatal_error(mssg, __FILE__, __LINE__);
   }
 
-  if (sim_type == "k-eigenvalue") {
-    simulation = std::make_shared<PowerIterator>(tallies, settings, transporter,
-                                                 sources);
-  } else {
-    std::string mssg = "Unknown simulation type " + sim_type + ".";
+  if (noise_sources.size() == 0 &&
+      settings::mode == settings::SimulationMode::NOISE) {
+    std::string mssg = "No noise source specified for noise problem.";
     fatal_error(mssg, __FILE__, __LINE__);
+  }
+}
+
+void make_simulation() {
+  switch (settings::mode) {
+    case settings::SimulationMode::K_EIGENVALUE:
+      if (!settings::regional_cancellation) {
+        simulation =
+            std::make_shared<PowerIterator>(tallies, transporter, sources);
+      } else {
+        simulation = std::make_shared<PowerIterator>(tallies, transporter,
+                                                     sources, cancelator);
+      }
+
+      break;
+    case settings::SimulationMode::FIXED_SOURCE:
+      simulation = std::make_shared<FixedSource>(tallies, transporter, sources);
+      break;
+
+    case settings::SimulationMode::NOISE:
+      if (!settings::regional_cancellation &&
+          !settings::regional_cancellation_noise) {
+        simulation = std::make_shared<Noise>(tallies, transporter, sources,
+                                             noise_sources);
+      } else {
+        simulation = std::make_shared<Noise>(tallies, transporter, sources,
+                                             cancelator, noise_sources);
+      }
+      break;
   }
 }
 

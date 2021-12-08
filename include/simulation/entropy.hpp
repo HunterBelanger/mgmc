@@ -36,11 +36,12 @@
  * pris connaissance de la licence CeCILL, et que vous en avez accepté les
  * termes.
  *============================================================================*/
-#ifndef MG_ENTROPY_H
-#define MG_ENTROPY_H
+#ifndef ENTROPY_H
+#define ENTROPY_H
 
 #include <array>
 #include <cmath>
+#include <utils/mpi.hpp>
 #include <utils/position.hpp>
 #include <vector>
 
@@ -69,7 +70,7 @@ class Entropy {
   }
   ~Entropy() = default;
 
-  void add_point(const Position& r, const double& w) {
+  void add_point(const Position &r, const double &w) {
     // Get bin idecies
     int32_t nx =
         static_cast<int32_t>(std::floor((r.x() - lower_corner.x()) / dx));
@@ -82,8 +83,7 @@ class Entropy {
     if (nx >= 0 && nx < static_cast<int32_t>(shape[0]) && ny >= 0 &&
         ny < static_cast<int32_t>(shape[1]) && nz >= 0 &&
         nz < static_cast<int32_t>(shape[2])) {
-// Add to total weight, no matter sign being tallied
-#pragma omp atomic
+      // Add to total weight, no matter sign being tallied
       this->total_weight += w;
 
       // Get sign of particle
@@ -97,12 +97,59 @@ class Entropy {
 
       // Add weight to bin if sign agrees
       if (p_sign == sign) {
-#pragma omp atomic
         this->bins[(shape[1] * shape[2]) * nx + (shape[2]) * ny + nz] += w;
       }
 
     } else
       std::cout << " Missing entropy particle at " << r << "\n";
+  }
+
+  void synchronize_entropy_across_nodes() {
+#ifdef MGMC_USE_MPI
+    // All worker threads must send their generation score to the master.
+    // Master must recieve all generations scores from workers and add
+    // them to it's own generation score. We do this with MPI_Reduce.
+    // We must sadly allocate a recieving buffer to do this however.
+    std::vector<double> receiving_buffer;
+    double *receiving_buffer_ptr = nullptr;
+
+    // If we are master, we allocate the space in the receiving buffer and
+    // set the receiving pointer.
+    if (mpi::rank == 0) {
+      receiving_buffer.resize(bins.size(), 0.);
+      receiving_buffer_ptr = &receiving_buffer[0];
+    }
+
+    // Perform reduction
+    mpi::synchronize();
+    int err = 0;
+    err = MPI_Reduce(&bins[0],  // All processes send the tally_gen data
+                     receiving_buffer_ptr,  // If we are master, we save sum to
+                                            // receiving_buffer
+                     static_cast<int>(bins.size()),  // Number of elements
+                     mpi::Double,                    // We are sending doubles
+                     mpi::Sum,                       // Sum reults
+                     0,                              // Results go to master
+                     mpi::com);
+    mpi::check_error(err, __FILE__, __LINE__);
+
+    // Place results in the receiving_buffer into the tally_gen
+    if (mpi::rank == 0) {
+      for (std::size_t i = 0; i < bins.size(); i++) {
+        bins[i] = receiving_buffer[i];
+      }
+    }
+
+    // Clear receiving buffer
+    receiving_buffer.clear();
+    receiving_buffer.shrink_to_fit();
+
+    // Make sure we all have the correct total weight
+    double total_weight_tmp = total_weight;
+    err = MPI_Reduce(&total_weight_tmp, &total_weight, 1, mpi::Double, mpi::Sum,
+                     0, mpi::com);
+    mpi::check_error(err, __FILE__, __LINE__);
+#endif
   }
 
   double calculate_entropy() const {
@@ -115,21 +162,16 @@ class Entropy {
         sum -= p*std::log2(p);
     }*/
 
-#pragma omp parallel for schedule(dynamic)
     for (size_t i = 0; i < this->bins.size(); i++) {
       double p = std::fabs(this->bins[i]) / this->total_weight;
 
       if (p > 1.0) {
-#pragma omp critical
-        {
-          std::cout << " Negative entropy: p = " << p
-                    << ", bin = " << this->bins[i]
-                    << ", total_weight = " << this->total_weight << "\n";
-        }
+        std::cout << " Negative entropy: p = " << p
+                  << ", bin = " << this->bins[i]
+                  << ", total_weight = " << this->total_weight << "\n";
       }
 
       if (p != 0.) {
-#pragma omp atomic
         sum -= p * std::log2(p);
       }
     }
@@ -139,7 +181,7 @@ class Entropy {
 
   void zero() {
     // Zero all bins
-    for (auto& b : this->bins) b = 0.;
+    for (auto &b : this->bins) b = 0.;
 
     this->total_weight = 0.;
   }

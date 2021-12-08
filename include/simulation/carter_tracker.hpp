@@ -36,32 +36,26 @@
  * pris connaissance de la licence CeCILL, et que vous en avez accepté les
  * termes.
  *============================================================================*/
-#ifndef MG_CARTER_TRACKER_H
-#define MG_CARTER_TRACKER_H
+#ifndef CARTER_TRACKER_H
+#define CARTER_TRACKER_H
 
+#include <PapillonNDL/cross_section.hpp>
+#include <PapillonNDL/energy_grid.hpp>
 #include <simulation/transporter.hpp>
 
 class CarterTracker : public Transporter {
  public:
-  CarterTracker(std::shared_ptr<Tallies> i_t, std::shared_ptr<Settings> i_s,
-                std::vector<double> Esmps)
-      : Transporter{i_t, i_s}, Esmp{Esmps} {};
+  CarterTracker(std::shared_ptr<Tallies> i_t);
   ~CarterTracker() = default;
 
-  std::vector<Particle> transport(std::vector<Particle>& bank,
-                                  std::vector<std::shared_ptr<RNG>>& rngs);
+  std::vector<BankedParticle> transport(
+      std::vector<Particle> &bank, bool noise = false,
+      std::vector<BankedParticle> *noise_bank = nullptr,
+      std::vector<std::shared_ptr<NoiseSource>> *noise_sources = nullptr);
 
  private:
-  std::vector<double> Esmp;
-
-  void russian_roulette(Particle& p, std::shared_ptr<RNG>& rng);
-
-  void scatter_particle(Particle& p, std::shared_ptr<Material> mat,
-                        std::shared_ptr<RNG>& rng);
-
-  Particle fission_neutron(Particle& p, std::shared_ptr<Material> mat,
-                           std::shared_ptr<RNG>& rng);
-
+  std::shared_ptr<pndl::EnergyGrid> EGrid;
+  std::shared_ptr<pndl::CrossSection> Esmp;
 };  // CarterTracker
 
 #endif  // MG_CARTER_TRACKER_H

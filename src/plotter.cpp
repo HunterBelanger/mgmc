@@ -56,8 +56,8 @@ void plotter(std::string input_fname) {
 
   // If there are plots, load geometry
   if (input["plots"] && input["plots"].IsSequence()) {
-    // Load materials
-    make_materials(input);
+    // Load materials in plotting_mode = true
+    make_materials(input, true);
 
     // Load geometry portions of input
     make_geometry(input);

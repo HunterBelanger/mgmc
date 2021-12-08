@@ -48,31 +48,4 @@ void fatal_error(std::string mssg, std::string file, int line);
 
 void warning(std::string mssg, std::string file, int line);
 
-//=======================================================================
-// From original MG implementation. Kept to keep things from breaking
-enum class ErrorType { Invalid, Value, Range };
-
-class Error : public std::exception {
- public:
-  Error(std::string mssg, ErrorType err, std::string fl, int ln)
-      : message{mssg}, type{err}, file{fl}, line_num{ln} {};
-
-  virtual const char* what() const throw() {
-    std::string err_msg = " ERROR: ";
-    err_msg += message + "\n";
-    err_msg += "   Occured in " + file + " at " + std::to_string(line_num);
-    err_msg += "\n";
-    return err_msg.c_str();
-  };
-
-  ErrorType get_type() const { return type; }
-
- private:
-  std::string message;
-  ErrorType type;
-  std::string file;
-  int line_num;
-
-};  // Error
-
 #endif

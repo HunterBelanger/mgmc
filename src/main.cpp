@@ -36,14 +36,17 @@
  * pris connaissance de la licence CeCILL, et que vous en avez accepté les
  * termes.
  *============================================================================*/
-#include <docopt/docopt.h>
+#include <docopt.h>
 
 #include <csignal>
+#include <cstdlib>
 #include <experimental/filesystem>
 #include <plotting/plotter.hpp>
 #include <stdexcept>
 #include <string>
+#include <utils/constants.hpp>
 #include <utils/header.hpp>
+#include <utils/mpi.hpp>
 #include <utils/output.hpp>
 #include <utils/parser.hpp>
 #include <utils/timer.hpp>
@@ -52,14 +55,34 @@
 #include <omp.h>
 #endif
 
-void signal_handler(int /*signal*/) {
-// Signal has been recieved. Set the signaled
-// flag in simulation. It will stop after the
-// current generation's particles have all been
-// transported as we can't break inside an
-// OpenMP loop.
+void signal_handler(int signal) {
+  if (!simulation->signaled) {
+    // Signal has been recieved. Set the signaled
+    // flag in simulation. It will stop after the
+    // current generation's particles have all been
+    // transported as we can't break inside an
+    // OpenMP loop.
+#ifdef _OPENMP
 #pragma omp critical
-  { simulation->signaled = true; }
+#endif
+    {
+      simulation->signaled = true;
+      if (signal == SIGTERM) simulation->terminate = true;
+    }
+  } else {
+    // A second signal has been recieved. We shall obey the master's
+    // wishes, and blow up everything, stoping the simulation imediately.
+    // No tallies will be saved, and the program with exit with an error
+    // code of 1.
+#ifdef _OPENMP
+#pragma omp critical
+#endif
+    {
+      Output::instance()->write("\n !! >>> FORCE KILLED BY USER <<< !!\n");
+      mpi::abort_mpi();
+      std::exit(1);
+    }
+  }
 }
 
 bool exists(std::string fname) {
@@ -67,7 +90,13 @@ bool exists(std::string fname) {
   return file.good();
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
+  settings::alpha_omega_timer.start();
+
+  mpi::initialize_mpi(&argc, &argv);
+
+  std::atexit(mpi::finalize_mpi);
+
   // Make help message string for docopt
   std::string help_message = version_string + "\n" + info + "\n" + help;
 
@@ -76,10 +105,18 @@ int main(int argc, char** argv) {
       docopt::docopt(help_message, {argv + 1, argv + argc}, true,
                      version_string + "\n" + info);
 
+  std::string output_filename;
+  if (args["--output"])
+    output_filename = args["--output"].asString();
+  else
+    output_filename = "output.txt";
+  Output::set_output_filename(output_filename);
+  mpi::synchronize();
+
   if (args["--plot"].asBool()) {
-    int num_omp_threads;
     // If using OpenMP, get number of threads requested
 #ifdef _OPENMP
+    int num_omp_threads;
     if (args["--threads"])
       num_omp_threads = std::stoi(args["--threads"].asString());
     else
@@ -91,9 +128,6 @@ int main(int argc, char** argv) {
     } else {
       omp_set_num_threads(num_omp_threads);
     }
-#else
-    // If not using OpenMP, number of threads is one
-    num_omp_threads = 1;
 #endif
     // Get input file
     std::string input_fname = "";
@@ -106,8 +140,14 @@ int main(int argc, char** argv) {
       print_header();
       Output::instance()->write("\n");
 
-      // Begin plotting system
-      plotter::plotter(input_fname);
+      try {
+        // Begin plotting system
+        plotter::plotter(input_fname);
+      } catch (const std::runtime_error &err) {
+        std::string mssg = err.what();
+        Output::instance()->write(" FATAL ERROR: " + mssg + ".\n");
+        std::exit(1);
+      }
 
       // After done with plotter, exit program
       return 0;
@@ -115,26 +155,16 @@ int main(int argc, char** argv) {
       std::cout << " ERROR: Input file not found.\n";
     }
   } else if (exists({args["--input"].asString()})) {  // Run program
-    // Start timer by initializing instance
-    Timer::instance();
-
     std::string input_filename;
-    std::string output_filename;
-    int num_omp_threads;
 
     if (args["--input"])
       input_filename = args["--input"].asString();
     else
       input_filename = "input.txt";
 
-    if (args["--output"])
-      output_filename = args["--output"].asString();
-    else
-      output_filename = "output.txt";
-    Output::set_output_filename(output_filename);
-
-    // If using OpenMP, get number of threads requested
+      // If using OpenMP, get number of threads requested
 #ifdef _OPENMP
+    int num_omp_threads;
     if (args["--threads"])
       num_omp_threads = std::stoi(args["--threads"].asString());
     else
@@ -146,12 +176,10 @@ int main(int argc, char** argv) {
     } else {
       omp_set_num_threads(num_omp_threads);
     }
-#else
-    // If not using OpenMP, number of threads is one
-    num_omp_threads = 1;
 #endif
 
     // Print output header if rank 0
+    mpi::synchronize();
     print_header();
     Output::instance()->write("\n");
 
@@ -160,7 +188,7 @@ int main(int argc, char** argv) {
     try {
       parse_input_file(args["--input"].asString());
       parsed_file = true;
-    } catch (const std::runtime_error& err) {
+    } catch (const std::runtime_error &err) {
       std::string mssg = err.what();
       Output::instance()->write(" FATAL ERROR: " + mssg + ".\n");
       parsed_file = false;
@@ -174,13 +202,26 @@ int main(int argc, char** argv) {
       std::signal(SIGINT, signal_handler);
       std::signal(SIGTERM, signal_handler);
 
-      // Must implement interupt catch
       simulation->run();
     }
 
   } else {
     std::cout << " ERROR: Input file not found.\n";
   }
+
+#ifdef MGMC_USE_MPI
+  if (mpi::size > 1) {
+    Output::instance()->write(
+        " Total MPI time: " + std::to_string(mpi::timer.elapsed_time()) +
+        " seconds.\n");
+  }
+#endif
+
+  settings::alpha_omega_timer.stop();
+  Output::instance()->write(
+      " Total Runtime: " +
+      std::to_string(settings::alpha_omega_timer.elapsed_time()) +
+      " seconds.\n");
 
   return 0;
 }

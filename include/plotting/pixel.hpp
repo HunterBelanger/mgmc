@@ -66,7 +66,7 @@ class Pixel {
 
 //========================================================================
 // Non-Member Function Declarations
-std::ostream& operator<<(std::ostream& out, const Pixel& p);
+std::ostream &operator<<(std::ostream &out, const Pixel &p);
 
 }  // namespace plotter
 

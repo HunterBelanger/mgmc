@@ -119,6 +119,47 @@ std::shared_ptr<Cell> RectLattice::get_cell(Position r, Direction u,
   }
 }
 
+Cell* RectLattice::get_cell_naked_ptr(Position r, Direction u,
+                                      int32_t on_surf) const {
+  // Get index of each axis
+  auto tile = get_tile(r, u);
+  int nx = tile[0];
+  int ny = tile[1];
+  int nz = tile[2];
+
+  if ((nx < 0 || nx >= static_cast<int>(Nx)) ||
+      (ny < 0 || ny >= static_cast<int>(Ny)) ||
+      (nz < 0 || nz >= static_cast<int>(Nz))) {
+    // Index is outside of lattice, if outside_universe, try outer_universe
+    if (outer_universe_index >= 0) {
+      return geometry::universes[outer_universe_index]->get_cell_naked_ptr(
+          r, u, on_surf);
+    } else {
+      // Location can not be found, return nullptr
+      return nullptr;
+    }
+  } else {
+    if (lattice_universes[linear_index(nx, ny, nz)] >= 0) {
+      // Element is a valid fill, get cell from that universe
+      // Transform coordinates to lattice elements locale frame
+      Position r_local = r - tile_center(nx, ny, nz);
+      int32_t univ_indx = lattice_universes[linear_index(nx, ny, nz)];
+      return geometry::universes[univ_indx]->get_cell_naked_ptr(r_local, u,
+                                                                on_surf);
+    } else {
+      // Element is a dummy, try outer_universe
+      if (outer_universe_index >= 0) {
+        // outer_universe is give, get cell from that
+        return geometry::universes[outer_universe_index]->get_cell_naked_ptr(
+            r, u, on_surf);
+      } else {
+        // No outer_universe provided, return nullptr
+        return nullptr;
+      }
+    }
+  }
+}
+
 std::shared_ptr<Cell> RectLattice::get_cell(std::vector<GeoLilyPad>& stack,
                                             Position r, Direction u,
                                             int32_t on_surf) const {
@@ -345,7 +386,7 @@ void make_rect_lattice(YAML::Node latt_node, YAML::Node input) {
     if (latt_node["universes"].size() == shape[0] * shape[1] * shape[2]) {
       // Go through and check each universe
       for (size_t u = 0; u < latt_node["universes"].size(); u++) {
-        int32_t u_id = latt_node["universes"][u].as<uint32_t>();
+        int32_t u_id = latt_node["universes"][u].as<int32_t>();
         if (u_id == -1) {
           uni_indicies.push_back(u_id);
         } else if (universe_id_to_indx.find(u_id) ==

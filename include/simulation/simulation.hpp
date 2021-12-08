@@ -36,8 +36,8 @@
  * pris connaissance de la licence CeCILL, et que vous en avez accepté les
  * termes.
  *============================================================================*/
-#ifndef MG_SIMULATION_H
-#define MG_SIMULATION_H
+#ifndef SIMULATION_H
+#define SIMULATION_H
 
 #include <geometry/geometry.hpp>
 #include <simulation/entropy.hpp>
@@ -47,29 +47,21 @@
 #include <sstream>
 #include <utils/rng.hpp>
 #include <utils/settings.hpp>
+#include <utils/timer.hpp>
 
 class Simulation {
  public:
-  Simulation(std::shared_ptr<Tallies> i_t, std::shared_ptr<Settings> i_s,
-             std::shared_ptr<Transporter> i_tr,
-             std::vector<std::shared_ptr<Source>> srcs)
-      : tallies{i_t},
-        settings{i_s},
-        transporter{i_tr},
-        sources{srcs},
-        rngs{},
-        p_pre_entropy(nullptr),
-        n_pre_entropy(nullptr),
-        t_pre_entropy(nullptr),
-        p_post_entropy(nullptr),
-        n_post_entropy(nullptr),
-        t_post_entropy(nullptr){};
+  Simulation(std::shared_ptr<Tallies> i_t, std::shared_ptr<Transporter> i_tr,
+             std::vector<std::shared_ptr<Source>> srcs);
   virtual ~Simulation() = default;
 
   virtual void initialize() = 0;
   virtual void run() = 0;
 
   virtual void premature_kill() = 0;
+
+  // Method to sample sources
+  std::vector<Particle> sample_sources(int N);
 
   // Methods to set entropies
   void set_p_pre_entropy(std::shared_ptr<Entropy> entrpy) {
@@ -93,13 +85,17 @@ class Simulation {
   }
 
   bool signaled = false;
+  bool terminate = false;
 
  protected:
   std::shared_ptr<Tallies> tallies;
-  std::shared_ptr<Settings> settings;
   std::shared_ptr<Transporter> transporter;
   std::vector<std::shared_ptr<Source>> sources;
-  std::vector<std::shared_ptr<RNG>> rngs;
+
+  Timer simulation_timer;
+
+  uint64_t histories_counter = 0;
+  uint64_t global_histories_counter = 0;
 
   // All entropy bins possible
   std::shared_ptr<Entropy> p_pre_entropy = nullptr;
@@ -109,6 +105,10 @@ class Simulation {
   std::shared_ptr<Entropy> p_post_entropy = nullptr;
   std::shared_ptr<Entropy> n_post_entropy = nullptr;
   std::shared_ptr<Entropy> t_post_entropy = nullptr;
+
+  void sync_signaled();
+  void sync_banks(std::vector<uint64_t> &nums,
+                  std::vector<BankedParticle> &bank);
 
 };  // Simulation
 

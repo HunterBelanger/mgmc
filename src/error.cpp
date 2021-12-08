@@ -37,26 +37,33 @@
  * termes.
  *============================================================================*/
 #include <utils/error.hpp>
+#include <utils/mpi.hpp>
 #include <utils/output.hpp>
 
-void error(std::string mssg, std::string /*file*/, int /*line*/) {
+void error(std::string mssg, std::string file, int line) {
   std::shared_ptr<Output> out = Output::instance();
   std::string message = "\n ERROR: " + mssg + "\n";
+  message +=
+      " Location: " + std::string(file) + ":" + std::to_string(line) + "\n";
   out->write_error(message);
 }
 
-void fatal_error(std::string mssg, std::string /*file*/, int /*line*/) {
+void fatal_error(std::string mssg, std::string file, int line) {
   std::shared_ptr<Output> out = Output::instance();
   std::string message = "\n FATAL ERROR: " + mssg + "\n";
+  message +=
+      " Location: " + std::string(file) + ":" + std::to_string(line) + "\n";
   out->write_error(message);
 
   // Exit
+  mpi::abort_mpi();
   std::exit(1);
 }
 
 void warning(std::string mssg, std::string file, int line) {
   std::shared_ptr<Output> out = Output::instance();
   std::string message = "\n WARNING: " + mssg + "\n";
-  message += "          File: " + file + ":" + std::to_string(line) + "\n";
+  message +=
+      " Location: " + std::string(file) + ":" + std::to_string(line) + "\n";
   out->write_error(message);
 }

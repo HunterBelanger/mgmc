@@ -43,8 +43,8 @@
 #include <mutex>
 #include <plotting/pixel.hpp>
 #include <string>
-#include <utils/mt19937.hpp>
 #include <utils/position.hpp>
+#include <utils/rng.hpp>
 #include <vector>
 
 namespace plotter {
@@ -74,7 +74,7 @@ class SlicePlot {
   Pixel background_;
   std::vector<Pixel> image_matrix;  // Row-Major order
   double width_, height_;
-  MT19937 rng;
+  pcg32 rng;
   std::mutex create_color_mutex;
 
   Position get_pixel_position(uint64_t i, uint64_t j) const;

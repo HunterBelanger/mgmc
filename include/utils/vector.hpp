@@ -39,6 +39,7 @@
 #ifndef VECTOR_H
 #define VECTOR_H
 
+#include <cmath>
 #include <iostream>
 
 //============================================================================
@@ -46,15 +47,18 @@
 //----------------------------------------------------------------------------
 class Vector {
  public:
-  Vector(double i_x, double i_y, double i_z);
-  virtual ~Vector() = default;
+  Vector(double i_x, double i_y, double i_z) : x_{i_x}, y_{i_y}, z_{i_z} {};
+  ~Vector() = default;
 
-  double x() const;
-  double y() const;
-  double z() const;
+  double x() const { return x_; }
+  double y() const { return y_; }
+  double z() const { return z_; }
 
-  double dot(const Vector& v) const;
-  double norm() const;
+  double dot(const Vector &v) const {
+    return x_ * v.x() + y_ * v.y() + z_ * v.z();
+  }
+
+  double norm() const { return std::sqrt(x_ * x_ + y_ * y_ + z_ * z_); }
 
  protected:
   double x_;
@@ -66,14 +70,31 @@ class Vector {
 //============================================================================
 // Overloaded Operator Declarations
 //----------------------------------------------------------------------------
-Vector operator+(const Vector& v1, const Vector& v2);
-Vector operator-(const Vector& v1, const Vector& v2);
+inline Vector operator+(const Vector &v1, const Vector &v2) {
+  return Vector(v1.x() + v2.x(), v1.y() + v2.y(), v1.z() + v2.z());
+}
 
-Vector operator*(const Vector& v, double d);
-Vector operator*(double d, const Vector& v);
-Vector operator/(const Vector& v, double d);
+inline Vector operator-(const Vector &v1, const Vector &v2) {
+  return Vector(v1.x() - v2.x(), v1.y() - v2.y(), v1.z() - v2.z());
+}
 
-double operator*(const Vector& v1, const Vector& v2);
-std::ostream& operator<<(std::ostream& output, const Vector& v);
+inline Vector operator*(const Vector &v, double d) {
+  return Vector(v.x() * d, v.y() * d, v.z() * d);
+}
+
+inline Vector operator*(double d, const Vector &v) { return v * d; }
+
+inline Vector operator/(const Vector &v, double d) {
+  return Vector(v.x() / d, v.y() / d, v.z() / d);
+}
+
+inline double operator*(const Vector &v1, const Vector &v2) {
+  return v1.dot(v2);
+}
+
+inline std::ostream &operator<<(std::ostream &output, const Vector &v) {
+  output << "<" << v.x() << "," << v.y() << "," << v.z() << ">";
+  return output;
+}
 
 #endif

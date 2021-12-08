@@ -50,12 +50,12 @@ class Surface {
   Surface(BoundaryType bound, uint32_t i_id, std::string i_name);
   virtual ~Surface() = default;
 
-  virtual int sign(const Position& r, const Direction& u) const = 0;
+  virtual int sign(const Position &r, const Direction &u) const = 0;
 
-  virtual double distance(const Position& r, const Direction& u,
+  virtual double distance(const Position &r, const Direction &u,
                           bool on_surf) const = 0;
 
-  virtual Direction norm(const Position& r) const = 0;
+  virtual Direction norm(const Position &r) const = 0;
 
   BoundaryType boundary() const;
   uint32_t id() const;

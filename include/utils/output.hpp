@@ -46,10 +46,8 @@
 #include <mutex>
 #include <string>
 #include <utils/header.hpp>
-
-#ifdef _OPENMP
-#include <omp.h>  // For print_header function
-#endif
+#include <utils/mpi.hpp>
+#include <vector>
 
 //============================================================================
 // Output Class (Singleton)
@@ -63,11 +61,17 @@ class Output {
 
   template <class T>
   void write(T message) {
-    write_mutex.lock();
-    std::cout << message << std::flush;
-    out << message << std::flush;
-    write_mutex.unlock();
+    if (mpi::rank == 0) {
+      write_mutex.lock();
+      std::cout << message << std::flush;
+      if (out.is_open()) out << message << std::flush;
+      write_mutex.unlock();
+    }
   }
+
+  void save_warning(std::string message);
+
+  void write_saved_warnings();
 
   void write_error(std::string message);
 
@@ -77,6 +81,8 @@ class Output {
   static std::string output_filename;
   static std::mutex instance_mutex;
   static std::mutex write_mutex;
+  static std::mutex save_mutex;
+  std::vector<std::string> warnings_for_latter;
   static bool fname_set;
   std::ofstream out;
 

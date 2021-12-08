@@ -43,7 +43,7 @@
 YPlane::YPlane(double y, BoundaryType bound, uint32_t i_id, std::string i_name)
     : Surface{bound, i_id, i_name}, y0{y} {}
 
-int YPlane::sign(const Position& r, const Direction& u) const {
+int YPlane::sign(const Position &r, const Direction &u) const {
   if (r.y() - y0 > SURFACE_COINCIDENT)
     return 1;
   else if (r.y() - y0 < -SURFACE_COINCIDENT)
@@ -56,7 +56,7 @@ int YPlane::sign(const Position& r, const Direction& u) const {
   }
 }
 
-double YPlane::distance(const Position& r, const Direction& u,
+double YPlane::distance(const Position &r, const Direction &u,
                         bool on_surf) const {
   double diff = y0 - r.y();
   if (on_surf || std::abs(diff) < SURFACE_COINCIDENT || u.y() == 0.)
@@ -67,7 +67,7 @@ double YPlane::distance(const Position& r, const Direction& u,
     return diff / u.y();
 }
 
-Direction YPlane::norm(const Position& /*r*/) const { return {0., 1., 0.}; }
+Direction YPlane::norm(const Position & /*r*/) const { return {0., 1., 0.}; }
 
 //===========================================================================
 // Non-Member Functions

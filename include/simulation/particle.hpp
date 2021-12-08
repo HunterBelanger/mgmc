@@ -36,68 +36,192 @@
  * pris connaissance de la licence CeCILL, et que vous en avez accepté les
  * termes.
  *============================================================================*/
-#ifndef MG_PARTICLE_H
-#define MG_PARTICLE_H
+#ifndef PARTICLE_H
+#define PARTICLE_H
 
+#include <pcg_random.hpp>
 #include <utils/direction.hpp>
 #include <utils/position.hpp>
+#include <vector>
+
+struct BankedParticle {
+  // Particle info
+  Position r;
+  Direction u;
+  double E;
+  double wgt;
+  double wgt2;
+
+  // Info about how it was made
+  uint64_t parent_history_id;
+  uint64_t parent_daughter_id;
+
+  // For use in performing cancellation
+  Position parents_previous_position = Position();
+  double parents_previous_energy = 0;
+  double Esmp_parent = 0.;
+
+  bool operator<(const BankedParticle &rhs) const {
+    if (parent_history_id < rhs.parent_history_id) return true;
+    if (parent_history_id == rhs.parent_history_id &&
+        parent_daughter_id < rhs.parent_daughter_id)
+      return true;
+    return false;
+  }
+};
 
 class Particle {
- public:
-  Particle(Position r, Direction u, int engy, double wgt)
-      : position{r}, direction{u}, energy{engy}, weight{wgt} {};
+ private:
+  struct ParticleState {
+    Position position;
+    Direction direction;
+    double energy;
+    double weight;
+    double weight2;
+  };
 
-  Position& r() { return position; }
-  const Position& r() const { return position; }
-  Direction& u() { return direction; }
-  double wgt() const { return weight; }
+ public:
+  Particle(Position r, Direction u, double engy, double wgt, uint64_t id = 0);
+  Particle(Position r, Direction u, double engy, double wgt, double wgt2,
+           uint64_t id = 0);
+
+  Position &r() { return state.position; }
+  const Position &r() const { return state.position; }
+  Direction &u() { return state.direction; }
+  const Direction &u() const { return state.direction; }
+  double wgt() const { return state.weight; }
+  double wgt2() const { return state.weight2; }
   bool is_alive() const { return alive; }
   bool is_reflected() const { return reflected; }
-  int E() const { return energy; }
+  double E() const { return state.energy; }
   Position previous_r() const { return previous_position; }
-  int previous_E() const { return previous_energy; }
+  double previous_E() const { return previous_energy; }
+  uint64_t history_id() const { return history_id_; }
+  uint64_t secondary_id() const { return secondary_id_; }
+  uint64_t daughter_counter() { return daughter_counter_++; }
+  double Esmp() const { return Esmp_; }
+  const Position &r_birth() const { return r_birth_; }
+
+  std::size_t num_secondaries() const { return secondaries.size(); }
 
   void set_position(Position r) {
-    previous_position = position;
-    position = r;
+    previous_position = state.position;
+    state.position = r;
   }
-  void set_direction(Direction u) { direction = u; }
-  void set_weight(double w) { weight = w; }
-  void set_energy(int E) {
-    previous_energy = energy;
-    energy = E;
+  void set_direction(Direction u) { state.direction = u; }
+  void set_weight(double w) { state.weight = w; }
+  void set_weight2(double w) { state.weight2 = w; }
+  void set_energy(double E) {
+    previous_energy = state.energy;
+    state.energy = E;
   }
   void set_previous_r(Position r) { previous_position = r; }
   void set_reflected(bool ref) { reflected = ref; }
+  void set_history_id(uint64_t i) { history_id_ = i; }
+  void set_secondary_id(uint64_t i) { secondary_id_ = i; }
+  void set_Esmp(double new_Esmp) { Esmp_ = new_Esmp; }
 
   void move(double dist) {
     if (reflected == false) {
-      previous_position = position;
-      position = position + dist * direction;
+      previous_position = state.position;
+      state.position = state.position + dist * state.direction;
     } else {
-      position = position + dist * direction;
+      state.position = state.position + dist * state.direction;
       reflected = false;
     }
   }
 
   void kill() { alive = false; }
 
-  Position parents_previous_position = Position();
-  int parents_previous_energy = 0;
-  double Esmp_parent = 1.;
+  void add_fission_particle(const BankedParticle &fiss_particle) {
+    history_fission_bank.push_back(fiss_particle);
+  }
+
+  void add_noise_particle(const BankedParticle &noise_particle) {
+    history_noise_bank.push_back(noise_particle);
+  }
+
+  void empty_fission_bank(std::vector<BankedParticle> &bank) {
+    bank.insert(std::end(bank), std::begin(history_fission_bank),
+                std::end(history_fission_bank));
+
+    history_fission_bank.clear();
+    history_fission_bank.shrink_to_fit();
+  }
+
+  void empty_noise_bank(std::vector<BankedParticle> &bank) {
+    bank.insert(std::end(bank), std::begin(history_noise_bank),
+                std::end(history_noise_bank));
+
+    history_noise_bank.clear();
+    history_noise_bank.shrink_to_fit();
+  }
+
+  void make_secondary(Direction u, double E, double wgt, double wgt2 = 0.) {
+    secondaries.push_back({state.position, u, E, wgt, wgt2});
+  }
+
+  void split(int n_new) {
+    if (n_new > 1) {
+      this->set_weight(this->wgt() / static_cast<double>(n_new));
+      this->set_weight2(this->wgt2() / static_cast<double>(n_new));
+      for (int np = 0; np < n_new - 1; np++) {
+        this->make_secondary(this->u(), this->E(), this->wgt(), this->wgt2());
+      }
+    }
+  }
+
+  void resurect() {
+    if (!alive && !secondaries.empty()) {
+      alive = true;
+      state = secondaries.back();
+      secondaries.pop_back();
+      // r_birth_ = state.position;
+
+      // The particle is now the next particle in the history
+      // so we advance the secondary id.
+      secondary_id_++;
+    }
+  }
+
+  void initialize_rng(uint64_t seed, uint64_t stride) {
+    rng.seed(seed);
+    uint64_t n_advance = stride * history_id_;
+    rng.advance(n_advance);
+    histories_initial_rng = rng;
+  }
+
+  void set_initial_rng(pcg32 initial_rng) {
+    histories_initial_rng = initial_rng;
+  }
+
+  uint64_t number_of_rng_calls() const { return rng - histories_initial_rng; }
+
+  pcg32 rng;
 
  private:
-  Position position;
-  Direction direction;
+  ParticleState state;
+
+  uint64_t history_id_;
+
+  std::vector<ParticleState> secondaries;
+  std::vector<BankedParticle> history_fission_bank;
+  std::vector<BankedParticle> history_noise_bank;
+
+  uint64_t secondary_id_ = 0;
+  uint64_t daughter_counter_ = 0;
 
   Position previous_position = Position();
-  int previous_energy = 0;
+  double previous_energy = 0;
 
-  int energy;
-  double weight;
+  double Esmp_ = 0.;
+
   bool alive = true;
   bool reflected = false;
 
+  Position r_birth_ = Position();
+
+  pcg32 histories_initial_rng;
 };  // Particle
 
 #endif  // MG_PARTICLE_H

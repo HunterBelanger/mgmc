@@ -44,23 +44,30 @@
 
 //============================================================================
 // Versioning
-constexpr int VERSION_MAJOR = 0;
-constexpr int VERSION_MINOR = 1;
-constexpr int VERSION_PATCH = 1;
-constexpr bool DEVELOPMENT_VERSION = false;
+constexpr int VERSION_MAJOR{0};
+constexpr int VERSION_MINOR{2};
+constexpr int VERSION_PATCH{0};
+constexpr bool DEVELOPMENT_VERSION{false};
 //#define DEV_VERSION  // TO BE REMOVED FOR NON-DEV VERSIONS
-constexpr int COPYRIGHT_YEAR = 2021;
-#define VERSION_STRING "0.1.1"
+constexpr int COPYRIGHT_YEAR{2021};
+#define MGMC_VERSION_STRING "0.2.0-alpha"
 //  constexpr const char VERSION_STRING[] = {VERSION_MAJOR+'0', '.',
 //    VERSION_MINOR+'0','.',VERSION_PATCH+'0'};
 
 //============================================================================
 // Mathematical and Physical Constants
-constexpr double INF = std::numeric_limits<double>::max();
-constexpr double PI = 3.14159265358979323846264338327950288;
+constexpr double INF{std::numeric_limits<double>::max()};
+constexpr int INF_INT{std::numeric_limits<int>::max()};
+constexpr double PI{3.14159265358979323846264338327950288};
+constexpr double EV_TO_K{1.160451812E4};
+constexpr double MEV_TO_EV{1.E6};
+constexpr double EV_TO_MEV{1.E-6};
+constexpr double N_MASS_EV{939.56542052 * MEV_TO_EV};
+constexpr double C_CM_S{29979245800.0};
+constexpr double N_AVAGADRO{0.6022140857};  // [10^24 / mol]
 
 //============================================================================
 // Program Parameters
-constexpr double SURFACE_COINCIDENT = 1E-12;
+constexpr double SURFACE_COINCIDENT{1E-12};
 
 #endif

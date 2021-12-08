@@ -36,45 +36,75 @@
  * pris connaissance de la licence CeCILL, et que vous en avez accepté les
  * termes.
  *============================================================================*/
-#ifndef MG_MATERIAL_H
-#define MG_MATERIAL_H
+#ifndef MATERIAL_H
+#define MATERIAL_H
+
+#include <yaml-cpp/yaml.h>
 
 #include <map>
+#include <materials/nuclide.hpp>
 #include <memory>
-#include <utils/position.hpp>
+#include <utils/rng.hpp>
 #include <vector>
 
 class Material;
+extern std::map<uint32_t, std::shared_ptr<Material>> materials;
 
-//========================================================================
-// Material Holders
-extern std::map<uint32_t, uint32_t> material_id_to_indx;
-extern std::vector<std::shared_ptr<Material>> materials;
-extern std::vector<double> majorant_xs;
-
-class Material {
+class Material : public std::enable_shared_from_this<Material> {
  public:
-  Material(uint32_t id, std::string name) : id_{id}, name_{name} {};
-  virtual ~Material() = default;
+  Material() : composition_(), id_(), name_() {}
 
-  virtual double Et(Position r, int E) const = 0;
-  virtual double Ea(Position r, int E) const = 0;
-  virtual double Ef(Position r, int E) const = 0;
-  virtual double nu(Position r, int E) const = 0;
-  virtual const std::vector<double>& Es(Position r, int E) const = 0;
-  virtual const std::vector<double>& chi(Position r, int E) const = 0;
-  virtual int num_groups() const = 0;
-  virtual bool verify() const = 0;
+  struct Component {
+    double concentration;
+    std::shared_ptr<Nuclide> nuclide;
+  };
 
-  std::string get_name() const { return name_; }
+  void add_component(double concentration, std::shared_ptr<Nuclide> nuclide) {
+    composition_.push_back({concentration, nuclide});
+  }
+
+  double max_energy() const {
+    double max = 10000.;
+    for (const auto &comp : composition_) {
+      if (comp.nuclide->max_energy() < max) {
+        max = comp.nuclide->max_energy();
+      }
+    }
+
+    return max;
+  }
+
+  double min_energy() const {
+    double min = 0.;
+    for (const auto &comp : composition_) {
+      if (comp.nuclide->min_energy() > min) {
+        min = comp.nuclide->min_energy();
+      }
+    }
+
+    return min;
+  }
+
+  const std::vector<Component> &composition() const { return composition_; }
+  const std::string &get_name() const { return name_; }
   uint32_t id() const { return id_; }
-  bool is_fissionable() const { return fissionable; }
+  bool fissile() const {
+    for (const auto &comp : composition_) {
+      if (comp.nuclide->fissile()) return true;
+    }
+    return false;
+  }
 
- protected:
+ private:
+  std::vector<Component> composition_;
   uint32_t id_;
   std::string name_;
-  bool fissionable = false;
 
-};  // Material
+  friend void make_material(const YAML::Node &mat, const YAML::Node &xsdir,
+                            bool plotting_mode);
+};
 
-#endif  // MG_MATERIAL_H
+void make_material(const YAML::Node &mat, const YAML::Node &xsdir,
+                   bool plotting_mode);
+
+#endif

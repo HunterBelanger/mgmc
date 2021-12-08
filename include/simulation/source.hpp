@@ -36,86 +36,37 @@
  * pris connaissance de la licence CeCILL, et que vous en avez accepté les
  * termes.
  *============================================================================*/
-#ifndef MG_SOURCE_H
-#define MG_SOURCE_H
+#ifndef SOURCE_H
+#define SOURCE_H
 
-#include <fstream>
+#include <yaml-cpp/yaml.h>
+
 #include <memory>
+#include <simulation/direction_distribution.hpp>
+#include <simulation/energy_distribution.hpp>
 #include <simulation/particle.hpp>
-#include <utils/constants.hpp>
-#include <utils/rng.hpp>
+#include <simulation/spatial_distribution.hpp>
 
 class Source {
  public:
-  Source(double w) : weight{w} {};
-  virtual ~Source() = default;
-  virtual Particle generate_particle(std::shared_ptr<RNG> rng) = 0;
-  virtual double wgt() const { return weight; }
+  Source(std::shared_ptr<SpatialDistribution> spatial,
+         std::shared_ptr<DirectionDistribution> direction,
+         std::shared_ptr<EnergyDistribution> energy, bool fissile_only,
+         double weight);
 
- protected:
-  double weight;
-
-};  // Source
-
-class PointSource : public Source {
- public:
-  PointSource(Position i_r, std::vector<double> i_x, double w)
-      : Source{w}, r{i_r}, chi{i_x} {};
-  ~PointSource() = default;
-
-  Particle generate_particle(std::shared_ptr<RNG> rng) override {
-    double mu = 2. * rng->rand() - 1.;
-    double phi = 2. * PI * rng->rand();
-    double ux = std::sqrt(1. - mu * mu) * std::cos(phi);
-    double uy = std::sqrt(1. - mu * mu) * std::sin(phi);
-    double uz = mu;
-
-    int E = rng->discrete(chi);
-
-    return Particle(r, Direction(ux, uy, uz), E, 1.0);
-  }
-
-  double wgt() const override { return weight; }
+  Particle generate_particle(pcg32 &rng) const;
+  double wgt() const { return weight_; }
+  bool fissile_only() const { return fissile_only_; }
 
  private:
-  Position r;
-  std::vector<double> chi;
-
-};  // PointSource
-
-class BoxSource : public Source {
- public:
-  BoxSource(Position low, Position hi, std::vector<double> i_x, double w)
-      : Source{w}, low_left{low}, up_right{hi}, chi{i_x} {}
-  ~BoxSource() = default;
-
-  Particle generate_particle(std::shared_ptr<RNG> rng) override {
-    // Sample random positon in box
-    double x = (up_right.x() - low_left.x()) * rng->rand() + low_left.x();
-    double y = (up_right.y() - low_left.y()) * rng->rand() + low_left.y();
-    double z = (up_right.z() - low_left.z()) * rng->rand() + low_left.z();
-    Position r(x, y, z);
-
-    // Sample random direction
-    double mu = 2. * rng->rand() - 1.;
-    double phi = 2. * PI * rng->rand();
-    double ux = std::sqrt(1. - mu * mu) * std::cos(phi);
-    double uy = std::sqrt(1. - mu * mu) * std::sin(phi);
-    double uz = mu;
-    Direction u(ux, uy, uz);
-
-    // Sample random group
-    int E = rng->discrete(chi);
-
-    return Particle(r, u, E, 1.0);
-  }
-
-  double wgt() const override { return weight; }
-
- private:
-  Position low_left;
-  Position up_right;
-  std::vector<double> chi;
+  std::shared_ptr<SpatialDistribution> spatial_;
+  std::shared_ptr<DirectionDistribution> direction_;
+  std::shared_ptr<EnergyDistribution> energy_;
+  bool fissile_only_;
+  double weight_;
 };
 
-#endif  // MG_SOURCE_H
+// Helper function to build a source entry
+std::shared_ptr<Source> make_source(YAML::Node source_node);
+
+#endif

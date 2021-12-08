@@ -44,7 +44,7 @@ Sphere::Sphere(double x_, double y_, double z_, double r_, BoundaryType bound,
                uint32_t i_id, std::string i_name)
     : Surface{bound, i_id, i_name}, x0{x_}, y0{y_}, z0{z_}, R{r_} {}
 
-int Sphere::sign(const Position& r, const Direction& u) const {
+int Sphere::sign(const Position &r, const Direction &u) const {
   double x = r.x() - x0;
   double y = r.y() - y0;
   double z = r.z() - z0;
@@ -61,11 +61,11 @@ int Sphere::sign(const Position& r, const Direction& u) const {
   }
 }
 
-double Sphere::distance(const Position& r, const Direction& u,
+double Sphere::distance(const Position &r, const Direction &u,
                         bool on_surf) const {
   double x = r.x() - x0;
   double y = r.y() - y0;
-  double z = r.y() - z0;
+  double z = r.z() - z0;
   double k = x * u.x() + y * u.y() + z * u.z();
   double c = x * x + y * y + z * z - R * R;
   double quad = k * k - c;
@@ -89,7 +89,7 @@ double Sphere::distance(const Position& r, const Direction& u,
   }
 }
 
-Direction Sphere::norm(const Position& r) const {
+Direction Sphere::norm(const Position &r) const {
   double x = r.x() - x0;
   double y = r.y() - y0;
   double z = r.z() - z0;

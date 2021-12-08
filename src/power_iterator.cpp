@@ -36,384 +36,532 @@
  * pris connaissance de la licence CeCILL, et que vous en avez accepté les
  * termes.
  *============================================================================*/
-#include <omp.h>
-
+#include <cmath>
 #include <fstream>
+#include <geometry/geometry.hpp>
 #include <iomanip>
+#include <ios>
 #include <iostream>
+#include <numeric>
 #include <simulation/power_iterator.hpp>
-#include <utils/mt19937.hpp>
+#include <sstream>
+#include <utils/error.hpp>
+#include <utils/mpi.hpp>
 #include <utils/output.hpp>
-#include <utils/pcg.hpp>
+#include <utils/rng.hpp>
+#include <utils/settings.hpp>
+#include <utils/timer.hpp>
+#include <vector>
 
 void PowerIterator::initialize() {
-  std::shared_ptr<Output> out = Output::instance();
-  out->write(" Seeding random number generators...\n");
-  // Initialize random number generators
-  int nthrds = 1;
-#ifdef _OPENMP
-  nthrds = omp_get_max_threads();
-#endif
-  for (int i = 0; i < nthrds; i++) {
-    // Default use PCG for RNG
-    if (settings->use_pcg)
-      rngs.push_back(std::make_shared<PCG>(settings->rng_seed + i + 5));
-    // Otherwise use Mersenne Twister
-    else
-      rngs.push_back(std::make_shared<MT19937>(settings->rng_seed + i + 5));
-  }
-
   // If not using source file
-  if (settings->load_source_file == false) {
-    // Vector of source weights
-    std::vector<double> wgts;
-    for (size_t i = 0; i < sources.size(); i++)
-      wgts.push_back(sources[i]->wgt());
-
-    // Generate source particles
-    out->write(" Generating source particles...\n");
-    std::vector<Particle> source_particles;
-    std::shared_ptr<RNG> rng = rngs[0];
-    for (int i = 0; i < settings->nparticles; i++) {
-      int indx = rng->discrete(wgts);
-      source_particles.push_back(sources[indx]->generate_particle(rng));
-    }
-    bank = source_particles;
+  if (settings::load_source_file == false) {
+    sample_source_from_sources();
   } else {
     // Load source file
-    NDArray<double> source =
-        NDArray<double>::load(settings->in_source_file_name);
-    // Get number of particles
-    size_t Nprt = source.shape()[0];
-
-    std::shared_ptr<RNG> rng = rngs[0];
-    double tot_wgt = 0.0;
-    for (size_t i = 0; i < Nprt; i++) {
-      double x = source[i * 5 + 0];
-      double y = source[i * 5 + 1];
-      double z = source[i * 5 + 2];
-      int E = static_cast<int>(source[i * 5 + 3]);
-      double w = source[i * 5 + 4];
-
-      double mu = 2. * rng->rand() - 1.;
-      double phi = 2. * PI * rng->rand();
-      double ux = std::sqrt(1. - mu * mu) * std::cos(phi);
-      double uy = std::sqrt(1. - mu * mu) * std::sin(phi);
-      double uz = mu;
-
-      bank.push_back({{x, y, z}, {ux, uy, uz}, E, w});
-      tot_wgt += w;
-    }
-
-    out->write(" Total Weight of System: " + std::to_string(tot_wgt) + "\n");
-    settings->nparticles = std::round(tot_wgt);
-    tallies->set_total_weight(tot_wgt);
+    load_source_from_file();
   }
+}
+
+void PowerIterator::load_source_from_file() {
+  std::shared_ptr<Output> out = Output::instance();
+
+  // Load source file
+  NDArray<double> source = NDArray<double>::load(settings::in_source_file_name);
+  // Get number of particles
+  std::size_t Nprt = source.shape()[0];
+
+  // Calculate the base number of particles per node to run
+  uint64_t base_particles_per_node = static_cast<uint64_t>(Nprt / mpi::size);
+  uint64_t remainder = static_cast<uint64_t>(Nprt % mpi::size);
+
+  // Set the base number of particles per node in the node_nparticles vector
+  mpi::node_nparticles.resize(mpi::size, base_particles_per_node);
+
+  // Distribute the remainder particles amonst the nodes. There are at most
+  // mpi::size-1 remainder particles, so we will distribute them untill we
+  // have no more.
+  for (std::size_t rank = 0; rank < remainder; rank++) {
+    mpi::node_nparticles[rank]++;
+  }
+
+  // Now we need to make sure that the history_counter for each node is at
+  // the right starting location.
+  for (int lower_rank = 0; lower_rank < mpi::rank; lower_rank++) {
+    histories_counter += mpi::node_nparticles.at(lower_rank);
+  }
+
+  // Each node starts reading the input source data at their histories_counter
+  // index. It then reads its assigned number of particles.
+  uint64_t file_start_loc = histories_counter;
+  double tot_wgt = 0.;
+  for (std::size_t i = 0; i < mpi::node_nparticles[mpi::rank]; i++) {
+    double x = source[(file_start_loc + i) * 8 + 0];
+    double y = source[(file_start_loc + i) * 8 + 1];
+    double z = source[(file_start_loc + i) * 8 + 2];
+    double ux = source[(file_start_loc + i) * 8 + 3];
+    double uy = source[(file_start_loc + i) * 8 + 4];
+    double uz = source[(file_start_loc + i) * 8 + 5];
+    double E = source[(file_start_loc + i) * 8 + 6];
+    double w = source[(file_start_loc + i) * 8 + 7];
+
+    bank.push_back({{x, y, z}, {ux, uy, uz}, E, w, histories_counter++});
+    bank.back().initialize_rng(settings::rng_seed, settings::rng_stride);
+    tot_wgt += w;
+  }
+  global_histories_counter = Nprt;
+
+  mpi::Allreduce_sum(tot_wgt);
+
+  out->write(" Total Weight of System: " + std::to_string(std::round(tot_wgt)) +
+             "\n");
+  settings::nparticles = std::round(tot_wgt);
+  tallies->set_total_weight(std::round(tot_wgt));
+}
+
+void PowerIterator::sample_source_from_sources() {
+  std::shared_ptr<Output> out = Output::instance();
+  out->write(" Generating source particles...\n");
+  // Calculate the base number of particles per node to run
+  uint64_t base_particles_per_node =
+      static_cast<uint64_t>(settings::nparticles / mpi::size);
+  uint64_t remainder = static_cast<uint64_t>(settings::nparticles % mpi::size);
+
+  // Set the base number of particles per node in the node_nparticles vector
+  mpi::node_nparticles.resize(mpi::size, base_particles_per_node);
+
+  // Distribute the remainder particles amonst the nodes. There are at most
+  // mpi::size-1 remainder particles, so we will distribute them untill we
+  // have no more.
+  for (std::size_t rank = 0; rank < remainder; rank++) {
+    mpi::node_nparticles[rank]++;
+  }
+
+  // Now we need to make sure that the history_counter for each node is at
+  // the right starting location.
+  for (int lower_rank = 0; lower_rank < mpi::rank; lower_rank++) {
+    histories_counter += mpi::node_nparticles.at(lower_rank);
+  }
+
+  // Go sample the particles for this node
+  bank = sample_sources(mpi::node_nparticles[mpi::rank]);
+
+  global_histories_counter += std::accumulate(mpi::node_nparticles.begin(),
+                                              mpi::node_nparticles.end(), 0);
 }
 
 void PowerIterator::print_header() {
   std::shared_ptr<Output> out = Output::instance();
-
-  // Change the header for the output based on wether or not the entropy is
-  // being calculated
   out->write("\n");
-  if (t_pre_entropy) {
-    out->write(
-        "                                              Pre-Cancelation "
-        "Entropies             Post-Cancelation Entropies\n");
-    out->write(
-        "                                        "
-        "------------------------------------   "
-        "------------------------------------\n");
-    out->write(
-        "  Gen      k         kavg +/- err         Positive     Nevative       "
-        " Total     Positive     Negative        Total      Nnet      Ntot     "
-        " Npos      Nneg      Wnet      Wtot      Wpos      Wneg\n");
-    out->write(
-        " ---------------------------------------------------------------------"
-        "----------------------------------------------------------------------"
-        "-------------------------------------------------------\n");
-    //             1120   1.23456   1.23456 +/-
-    //             0.00023   3.283E+002   3.283E+002   13.283E+002   3.283E+002
-    //             3.283E+002   3.283E+002   234567   1234567   1234567 1234567
-  } else {
-    out->write(
-        "  Gen      k         kavg +/- err          Nnet      Ntot      Npos   "
-        "   Nneg      Wnet      Wtot      Wpos      Wneg\n");
-    out->write(
-        " ---------------------------------------------------------------------"
-        "-----------------------------------------------\n");
-    //             1120   1.23456   1.23456 +/- 0.00023   1234567   1234567
-    //             1234567   1234567
+  std::stringstream output;
+
+  // First get the number of columns required to print the max generation number
+  int n_col_gen =
+      static_cast<int>(std::to_string(settings::ngenerations).size());
+
+  if (settings::regional_cancellation && t_pre_entropy) {
+    out->write(std::string(std::max(n_col_gen, 3) + 1, ' ') +
+               "                                         Pre-Cancelation "
+               "Entropies             Post-Cancelation Entropies\n");
+    out->write(std::string(std::max(n_col_gen, 3) + 1, ' ') +
+               "                                   "
+               "------------------------------------   "
+               "------------------------------------\n");
   }
+
+  output << " " << std::setw(std::max(n_col_gen, 3)) << std::setfill(' ');
+  output << std::right << "Gen"
+         << "      k         kavg +/- err    ";
+
+  if (!settings::regional_cancellation && t_pre_entropy) {
+    output << "    Entropy  ";
+  }
+
+  if (settings::regional_cancellation && t_pre_entropy) {
+    output << "     Positive     Nevative        Total     Positive     "
+              "Negative        Total";
+  }
+
+  if (settings::regional_cancellation) {
+    output << "      Nnet      Ntot      Npos      Nneg      Wnet      Wtot    "
+              "  Wpos      Wneg";
+  }
+
+  // Add line underneath
+  output << "\n " << std::string(output.str().size() - 3, '-') << "\n";
+
+  out->write(output.str());
+}
+
+void PowerIterator::generation_output() {
+  std::shared_ptr<Output> out = Output::instance();
+  std::stringstream output;
+
+  double kcol = tallies->kcol();
+
+  if (gen == 1) print_header();
+
+  // First get the number of columns required to print the max generation number
+  int n_col_gen =
+      static_cast<int>(std::to_string(settings::ngenerations).size());
+
+  output << " " << std::setw(std::max(n_col_gen, 3)) << std::setfill(' ');
+  output << std::right << gen << "   " << std::fixed << std::setprecision(5);
+  output << kcol;
+  if (gen <= settings::nignored + 1) {
+    output << "                      ";
+  } else {
+    double kcol_avg = tallies->kcol_avg();
+    double kcol_err = tallies->kcol_err();
+    output << "   " << kcol_avg << " +/- " << kcol_err;
+  }
+  output << "   ";
+
+  if (!settings::regional_cancellation && t_pre_entropy) {
+    output << std::setw(10) << std::scientific << std::setprecision(4);
+    output << t_pre_entropy->calculate_entropy();
+  }
+
+  if (settings::regional_cancellation && t_pre_entropy) {
+    output << std::setw(10) << std::scientific << std::setprecision(4)
+           << p_pre_entropy->calculate_entropy() << "   ";
+    output << n_pre_entropy->calculate_entropy() << "   ";
+    output << t_pre_entropy->calculate_entropy() << "   ";
+
+    output << p_post_entropy->calculate_entropy() << "   ";
+    output << n_post_entropy->calculate_entropy() << "   ";
+    output << t_post_entropy->calculate_entropy() << "   ";
+  }
+
+  if (settings::regional_cancellation) {
+    output << std::setw(7) << std::setfill(' ') << std::right;
+    output << Nnet << "   ";
+    output << std::setw(7) << std::setfill(' ') << std::right;
+    output << Ntot << "   ";
+    output << std::setw(7) << std::setfill(' ') << std::right;
+    output << Npos << "   ";
+    output << std::setw(7) << std::setfill(' ') << std::right;
+    output << Nneg << "   ";
+    output << std::setw(7) << std::setfill(' ') << std::right;
+    output << Wnet << "   ";
+    output << std::setw(7) << std::setfill(' ') << std::right;
+    output << Wtot << "   ";
+    output << std::setw(7) << std::setfill(' ') << std::right;
+    output << Wpos << "   ";
+    output << std::setw(7) << std::setfill(' ') << std::right;
+    output << Wneg;
+  }
+
+  // Add line underneath
+  output << "\n";
+
+  out->write(output.str());
 }
 
 void PowerIterator::run() {
   std::shared_ptr<Output> out = Output::instance();
   out->write(" Running k Eigenvalue Problem...\n");
-  out->write(" NPARTICLES: " + std::to_string(settings->nparticles) + ", ");
-  out->write(" NGENERATIONS: " + std::to_string(settings->ngenerations) + ",");
-  out->write(" NIGNORED: " + std::to_string(settings->nignored) + "\n");
+  out->write(" NPARTICLES: " + std::to_string(settings::nparticles) + ", ");
+  out->write(" NGENERATIONS: " + std::to_string(settings::ngenerations) + ",");
+  out->write(" NIGNORED: " + std::to_string(settings::nignored) + "\n");
 
   // Zero all entropy bins
-  if (t_pre_entropy) {
-    p_pre_entropy->zero();
-    n_pre_entropy->zero();
-    t_pre_entropy->zero();
+  zero_entropy();
 
-    p_post_entropy->zero();
-    n_post_entropy->zero();
-    t_post_entropy->zero();
-  }
+  // Start timer
+  simulation_timer.reset();
+  mpi::synchronize();
+  simulation_timer.start();
 
-  for (int g = 1; g <= settings->ngenerations; g++) {
-    std::vector<Particle> next_gen = transporter->transport(bank, rngs);
+  for (int g = 1; g <= settings::ngenerations; g++) {
+    gen = g;
+
+    std::vector<BankedParticle> next_gen = transporter->transport(bank);
+
+    if (next_gen.size() == 0) {
+      std::string mssg = "No fission neutrons were produced.";
+      fatal_error(mssg, __FILE__, __LINE__);
+    }
+    std::sort(next_gen.begin(), next_gen.end());
+    mpi::synchronize();
+
+    // Synchronize the fission banks across all nodes, so that each node will
+    // now have the particles that it will be responsible for.
+    sync_banks(mpi::node_nparticles, next_gen);
 
     // Get new keff
     tallies->calc_gen_values();
 
     // Store gen if passed ignored
-    if (settings->converged) tallies->record_generation();
+    if (settings::converged) tallies->record_generation();
 
     // Zero tallies for next generation
-    tallies->clear_generation(settings->converged);
+    tallies->clear_generation();
 
-    //---------------------------------------------------------------
     // Do all Pre-Cancelation entropy calculations
-    if (t_pre_entropy) {
-#pragma omp parallel for schedule(static)
-      for (size_t i = 0; i < next_gen.size(); i++) {
-        p_pre_entropy->add_point(next_gen[i].r(), next_gen[i].wgt());
-        n_pre_entropy->add_point(next_gen[i].r(), next_gen[i].wgt());
-        t_pre_entropy->add_point(next_gen[i].r(), next_gen[i].wgt());
-      }
-    }
-    //---------------------------------------------------------------
+    compute_pre_cancellation_entropy(next_gen);
 
     // Do weight cancelation
-    if (settings->regional_cancellation) {
-      perform_regional_cancelation(next_gen);
+    if (settings::regional_cancellation && cancelator) {
+      perform_regional_cancellation(next_gen);
     }
 
     // Calculate net positive and negative weight
-    double W = 0.;
-    double W_neg = 0.;
-    double W_pos = 0.;
-    int N_net = 0;
-    int N_tot = 0;
-    int N_pos = 0;
-    int N_neg = 0;
-#pragma omp parallel for schedule(static)
-    for (size_t i = 0; i < next_gen.size(); i++) {
-      if (next_gen[i].wgt() > 0.) {
-#pragma omp atomic
-        W_pos += next_gen[i].wgt();
-#pragma omp atomic
-        N_pos++;
-      } else {
-#pragma omp atomic
-        W_neg -= next_gen[i].wgt();
-#pragma omp atomic
-        N_neg++;
-      }
-    }
-    W = W_pos - W_neg;
-    N_net = N_pos - N_neg;
-    N_tot = N_pos + N_neg;
+    normalize_weights(next_gen);
 
-    // Re-Normalize particle weights
-    double w_per_part = static_cast<double>(settings->nparticles) / W;
-    W_neg = 0.;
-    W_pos = 0.;
-    W = 0.;
-#pragma omp parallel for schedule(static)
-    for (size_t i = 0; i < next_gen.size(); i++) {
-      next_gen[i].set_weight(next_gen[i].wgt() * w_per_part);
-
-#pragma omp atomic
-      W += next_gen[i].wgt();
-
-      if (next_gen[i].wgt() > 0.) {
-#pragma omp atomic
-        W_pos += next_gen[i].wgt();
-      } else {
-#pragma omp atomic
-        W_neg -= next_gen[i].wgt();
-      }
-
-      //---------------------------------------------------------------
-      // Do all Post-Cancelation entropy calculations
-      if (t_pre_entropy) {
-        p_post_entropy->add_point(next_gen[i].r(), next_gen[i].wgt());
-        n_post_entropy->add_point(next_gen[i].r(), next_gen[i].wgt());
-        t_post_entropy->add_point(next_gen[i].r(), next_gen[i].wgt());
-      }
-      //---------------------------------------------------------------
-    }
-
-    double Wtt = W_pos + W_neg;
-    int Wnet = std::round(W);
-    int Wtot = std::round(Wtt);
-    int Wpos = std::round(W_pos);
-    int Wneg = std::round(W_neg);
+    // Do all Post-Cancelation entropy calculations
+    compute_post_cancellation_entropy(next_gen);
 
     // Clear and switch particle banks
     bank.clear();
-    bank = next_gen;
+
+    // Make sure we have the proper history_counter values at each node
+    histories_counter = global_histories_counter;
+    for (int lower = 0; lower < mpi::rank; lower++) {
+      histories_counter += mpi::node_nparticles[lower];
+    }
+
+    bank.reserve(next_gen.size());
+    for (auto &p : next_gen) {
+      bank.push_back(Particle(p.r, p.u, p.E, p.wgt, histories_counter++));
+      bank.back().initialize_rng(settings::rng_seed, settings::rng_stride);
+    }
+
+    global_histories_counter += std::accumulate(mpi::node_nparticles.begin(),
+                                                mpi::node_nparticles.end(), 0);
+
     next_gen.clear();
+    next_gen.shrink_to_fit();
 
     // Output
-    generation_output(g, N_net, N_tot, N_pos, N_neg, Wnet, Wtot, Wpos, Wneg);
+    generation_output();
 
     // Check if signal has been sent after generation keff has been
     // recorded, and cancellation has occured. Otherwize source file
     // will be larger than necessary, and wrong number of gens will be
     // in output file based on number averaged for tallies.
+    sync_signaled();
     if (signaled) premature_kill();
 
-    // Zero all entropy bins
-    if (t_pre_entropy) {
-      p_pre_entropy->zero();
-      n_pre_entropy->zero();
-      t_pre_entropy->zero();
+    // Check if we have enough time to finish the simulation. If not,
+    // stop now.
+    check_time(g);
 
-      p_post_entropy->zero();
-      n_post_entropy->zero();
-      t_post_entropy->zero();
-    }
+    // Zero all entropy bins
+    zero_entropy();
 
     // Once ignored generations are finished, mark as true to start
     // doing tallies
-    if (g == settings->nignored) settings->converged = true;
+    if (g == settings::nignored) settings::converged = true;
   }
 
-  Output::instance()->write("\n");
+  // Stop timer
+  simulation_timer.stop();
+  out->write("\n Total Simulation Time: " +
+             std::to_string(simulation_timer.elapsed_time()) + " seconds.\n");
 
-  // Write flux file
-  if (settings->converged) {
-    tallies->write_flux(settings->flux_file_name);
-    tallies->write_power(settings->power_file_name);
+  if (settings::converged) {
+    // Write the final results of all estimators
+    out->write("\n");
+    std::stringstream output;
+    output << " Results using " << gen - settings::nignored
+           << " active generations:\n";
+    output << " -----------------------------------\n";
+    output << std::fixed << std::setprecision(6);
+    output << " | kcol    = " << tallies->kcol_avg() << " +/- "
+           << tallies->kcol_err() << " |\n";
+    output << " | kabs    = " << tallies->kabs_avg() << " +/- "
+           << tallies->kabs_err() << " |\n";
+    if (settings::tracking == settings::TrackingMode::SURFACE_TRACKING) {
+      output << " | ktrk    = " << tallies->ktrk_avg() << " +/- "
+             << tallies->ktrk_err() << " |\n";
+    }
+    output << " | leakage = " << tallies->leakage_avg() << " +/- "
+           << tallies->leakage_err() << " |\n";
+    output << " -----------------------------------\n";
+
+    out->write(output.str());
+
+    // Write saved warnings
+    out->write_saved_warnings();
+
+    // Save other outputs
+    out->write("\n");
+
+    // Write flux file
+    if (settings::converged) {
+      tallies->write_tallies();
+    }
   }
 
   // Check to write source
-  if (settings->save_source) write_source(bank, settings->source_file_name);
+  if (settings::save_source) write_source(bank, settings::source_file_name);
 }
 
-void PowerIterator::generation_output(int gen, int Nn, int Nt, int Npos,
-                                      int Nneg, int Wn, int Wt, int Wpos,
-                                      int Wneg) {
-  std::shared_ptr<Output> out = Output::instance();
-  std::stringstream output;
-
-  // Print header again every 300 generations
-  if (((gen - 1) % 300) == 0 && (gen - 1 != settings->nignored)) print_header();
-
-  if (gen <= settings->nignored + 1) {
-    output << std::fixed << std::setw(5) << std::setfill(' ') << gen << "   "
-           << std::setprecision(5) << tallies->keff();
-    if (t_pre_entropy) {
-      output << "                         ";
-      output << std::setw(10) << std::scientific << std::setprecision(4)
-             << p_pre_entropy->calculate_entropy() << "   ";
-      output << n_pre_entropy->calculate_entropy() << "   ";
-      output << t_pre_entropy->calculate_entropy() << "   ";
-
-      output << p_post_entropy->calculate_entropy() << "   ";
-      output << n_post_entropy->calculate_entropy() << "   ";
-      output << t_post_entropy->calculate_entropy() << "   ";
-    } else
-      output << "                         ";
-    output << std::fixed << std::setw(7) << std::setfill(' ') << Nn << "   ";
-    output << std::fixed << std::setw(7) << std::setfill(' ') << Nt << "   ";
-    output << std::fixed << std::setw(7) << std::setfill(' ') << Npos << "   ";
-    output << std::fixed << std::setw(7) << std::setfill(' ') << Nneg << "   ";
-    output << std::fixed << std::setw(7) << std::setfill(' ') << Wn << "   ";
-    output << std::fixed << std::setw(7) << std::setfill(' ') << Wt << "   ";
-    output << std::fixed << std::setw(7) << std::setfill(' ') << Wpos << "   ";
-    output << std::fixed << std::setw(7) << std::setfill(' ') << Wneg
-           << "   \n";
-    out->write(output.str());
-    output.str(std::string());
-    if (gen == settings->nignored) {
-      print_header();
-      /*if(t_pre_entropy)
-        out->write("
-      ----------------------------------------------------------------------------------------------------------------------------------------------------------\n");
-      else
-        out->write("
-      ----------------------------------------------------------------------------\n");*/
+void PowerIterator::normalize_weights(std::vector<BankedParticle> &next_gen) {
+  double W = 0.;
+  double W_neg = 0.;
+  double W_pos = 0.;
+  Nnet = 0;
+  Ntot = 0;
+  Npos = 0;
+  Nneg = 0;
+  for (size_t i = 0; i < next_gen.size(); i++) {
+    if (next_gen[i].wgt > 0.) {
+      W_pos += next_gen[i].wgt;
+      Npos++;
+    } else {
+      W_neg -= next_gen[i].wgt;
+      Nneg++;
     }
-  } else {
-    output << std::fixed << std::setw(5) << std::setfill(' ') << gen << "   ";
-    output << std::setprecision(5) << tallies->keff() << "   ";
-    output << tallies->kavg() << " +/- " << tallies->kerr() << "   ";
-    if (t_pre_entropy) {
-      output << std::setw(10) << std::scientific << std::setprecision(4)
-             << p_pre_entropy->calculate_entropy() << "   ";
-      output << n_pre_entropy->calculate_entropy() << "   ";
-      output << t_pre_entropy->calculate_entropy() << "   ";
+  }
 
-      output << p_post_entropy->calculate_entropy() << "   ";
-      output << n_post_entropy->calculate_entropy() << "   ";
-      output << t_post_entropy->calculate_entropy() << "   ";
+  mpi::Allreduce_sum(W);
+  mpi::Allreduce_sum(W_neg);
+  mpi::Allreduce_sum(W_pos);
+  mpi::Allreduce_sum(Npos);
+  mpi::Allreduce_sum(Nneg);
+
+  W = W_pos - W_neg;
+  Ntot = Npos + Nneg;
+  Nnet = Npos - Nneg;
+
+  // Re-Normalize particle weights
+  double w_per_part = static_cast<double>(settings::nparticles) / W;
+  W *= w_per_part;
+  W_neg *= w_per_part;
+  W_pos *= w_per_part;
+
+  for (std::size_t i = 0; i < next_gen.size(); i++) {
+    next_gen[i].wgt *= w_per_part;
+  }
+
+  double Wtt = W_pos + W_neg;
+  Wnet = std::round(W);
+  Wtot = std::round(Wtt);
+  Wpos = std::round(W_pos);
+  Wneg = std::round(W_neg);
+}
+
+void PowerIterator::compute_pre_cancellation_entropy(
+    std::vector<BankedParticle> &next_gen) {
+  if (t_pre_entropy && settings::regional_cancellation) {
+    for (size_t i = 0; i < next_gen.size(); i++) {
+      p_pre_entropy->add_point(next_gen[i].r, next_gen[i].wgt);
+      n_pre_entropy->add_point(next_gen[i].r, next_gen[i].wgt);
+      t_pre_entropy->add_point(next_gen[i].r, next_gen[i].wgt);
     }
-    output << std::fixed << std::setw(7) << std::setfill(' ') << Nn << "   ";
-    output << std::fixed << std::setw(7) << std::setfill(' ') << Nt << "   ";
-    output << std::fixed << std::setw(7) << std::setfill(' ') << Npos << "   ";
-    output << std::fixed << std::setw(7) << std::setfill(' ') << Nneg << "   ";
-    output << std::fixed << std::setw(7) << std::setfill(' ') << Wn << "   ";
-    output << std::fixed << std::setw(7) << std::setfill(' ') << Wt << "   ";
-    output << std::fixed << std::setw(7) << std::setfill(' ') << Wpos << "   ";
-    output << std::fixed << std::setw(7) << std::setfill(' ') << Wneg
-           << "   \n";
-    out->write(output.str());
-    output.str(std::string());
+    p_pre_entropy->synchronize_entropy_across_nodes();
+    n_pre_entropy->synchronize_entropy_across_nodes();
+    t_pre_entropy->synchronize_entropy_across_nodes();
+  } else if (t_pre_entropy) {
+    for (size_t i = 0; i < next_gen.size(); i++) {
+      t_pre_entropy->add_point(next_gen[i].r, next_gen[i].wgt);
+    }
+    t_pre_entropy->synchronize_entropy_across_nodes();
   }
 }
 
-void PowerIterator::write_source(std::vector<Particle>& bank,
+void PowerIterator::compute_post_cancellation_entropy(
+    std::vector<BankedParticle> &next_gen) {
+  if (t_pre_entropy && settings::regional_cancellation) {
+    for (size_t i = 0; i < next_gen.size(); i++) {
+      p_post_entropy->add_point(next_gen[i].r, next_gen[i].wgt);
+      n_post_entropy->add_point(next_gen[i].r, next_gen[i].wgt);
+      t_post_entropy->add_point(next_gen[i].r, next_gen[i].wgt);
+    }
+    p_post_entropy->synchronize_entropy_across_nodes();
+    n_post_entropy->synchronize_entropy_across_nodes();
+    t_post_entropy->synchronize_entropy_across_nodes();
+  }
+}
+
+void PowerIterator::zero_entropy() {
+  if (p_pre_entropy) {
+    p_pre_entropy->zero();
+  }
+
+  if (n_pre_entropy) {
+    n_pre_entropy->zero();
+  }
+
+  if (t_pre_entropy) {
+    t_pre_entropy->zero();
+  }
+
+  if (p_post_entropy) {
+    p_post_entropy->zero();
+  }
+
+  if (n_post_entropy) {
+    n_post_entropy->zero();
+  }
+
+  if (t_post_entropy) {
+    t_post_entropy->zero();
+  }
+}
+
+void PowerIterator::write_source(std::vector<Particle> &bank,
                                  std::string source_fname) {
-  Output::instance()->write(" Writing source distribution file...\n");
-
-  // Make an NDArray to contain all particles info first
-  NDArray<double> source({bank.size(), 5});
-
-  // Add all particles to the array
-  for (size_t i = 0; i < bank.size(); i++) {
-    source[i * 5 + 0] = bank[i].r().x();
-    source[i * 5 + 1] = bank[i].r().y();
-    source[i * 5 + 2] = bank[i].r().z();
-    source[i * 5 + 3] = static_cast<double>(bank[i].E());
-    source[i * 5 + 4] = bank[i].wgt();
+  // Convert the vector of particles to a vector of BakedParticle
+  std::vector<BankedParticle> tmp_bank(bank.size());
+  for (std::size_t i = 0; i < bank.size(); i++) {
+    tmp_bank[i].r = bank[i].r();
+    tmp_bank[i].u = bank[i].u();
+    tmp_bank[i].E = bank[i].E();
+    tmp_bank[i].wgt = bank[i].wgt();
   }
 
-  source.save(source_fname + ".npy");
+  // Send all particles to the master process, so that all fission
+  // sites can be written to a single npy file.
+  mpi::Gatherv(tmp_bank, 0);
+
+  Output::instance()->write("\n Writing source distribution file...\n");
+
+  if (mpi::rank == 0) {
+    // Make an NDArray to contain all particles info first
+    NDArray<double> source({tmp_bank.size(), 8});
+
+    // Add all particles to the array
+    for (std::size_t i = 0; i < tmp_bank.size(); i++) {
+      const auto &p = tmp_bank[i];
+
+      source[i * 8 + 0] = p.r.x();
+      source[i * 8 + 1] = p.r.y();
+      source[i * 8 + 2] = p.r.z();
+      source[i * 8 + 3] = p.u.x();
+      source[i * 8 + 4] = p.u.y();
+      source[i * 8 + 5] = p.u.z();
+      source[i * 8 + 6] = p.E;
+      source[i * 8 + 7] = p.wgt;
+    }
+
+    source.save(source_fname + ".npy");
+  }
 }
 
 void PowerIterator::premature_kill() {
   // See if the user really wants to kill the program
   std::shared_ptr<Output> out = Output::instance();
-  std::string response;
-  std::cout << "\n Do you really want to stop the simulation ? (y/N) => ";
-  std::cin >> response;
+  bool user_said_kill = false;
 
-  if (response == "y" || response == "Y") {
-    out->write("\n Simulation has been stopped by user. Cleaning up...\n");
+  if (mpi::rank == 0 && terminate == false) {
+    std::string response;
+    std::cout << "\n Do you really want to stop the simulation ? (y/N) => ";
+    std::cin >> response;
+    if (response == "y" || response == "Y") user_said_kill = true;
+  }
+
+  mpi::Bcast<bool>(user_said_kill, 0);
+
+  if (user_said_kill || terminate) {
+    out->write("\n Simulation has been stopped by user. Cleaning up...");
     // Looks like they really want to kill it.
-    // Save everthing for them, and abort.
 
-    // Only save flux is sim had already reached active generations.
-    // Otherwise there will be no flux to write
-    if (settings->converged) {
-      tallies->write_flux(settings->flux_file_name);
-      tallies->write_power(settings->power_file_name);
-    }
-
-    // Only save source if it was requested in the input file
-    if (settings->save_source) write_source(bank, settings->source_file_name);
-
-    // Finally, we may gracefully kill the program
-    std::exit(0);
+    // Setting ngenerations to gen will cause us to exit the
+    // transport loop as if we finished the simulation normally.
+    settings::ngenerations = gen;
   }
 
   // They don't really want to kill it. Reset flag
@@ -421,160 +569,72 @@ void PowerIterator::premature_kill() {
   std::cout << "\n";
 }
 
-std::string PowerIterator::remove(char c, std::string line) {
-  std::string out_line = "";
-  for (size_t i = 0; i < line.size(); i++) {
-    if (line[i] != c) out_line += line[i];
+bool PowerIterator::out_of_time(int gen) {
+  // Get the average time per generation
+  double T_avg = simulation_timer.elapsed_time() / static_cast<double>(gen);
+
+  // See how much time we have used so far.
+  double T_used = settings::alpha_omega_timer.elapsed_time();
+
+  // See how much time we have left
+  double T_remaining = settings::max_time - T_used;
+
+  // If the remaining time is less than 2*T_avg, than we just kill it
+  // it here, so that we are sure we don't run over.
+  if (T_remaining < 2. * T_avg) {
+    return true;
   }
 
-  return out_line;
+  return false;
 }
 
-std::vector<std::string> PowerIterator::split(std::string line) {
-  std::vector<std::string> output;
-  std::string element = "";
+void PowerIterator::check_time(int gen) {
+  bool should_stop_now = false;
+  if (mpi::rank == 0) should_stop_now = out_of_time(gen);
 
-  for (size_t i = 0; i < line.size(); i++) {
-    if (line[i] != ',')
-      element += line[i];
-    else {
-      if (element.size() != 0) {
-        output.push_back(element);
-        element.clear();
-      }
-    }
+  mpi::Allreduce_or(should_stop_now);
+
+  if (should_stop_now) {
+    // Setting ngenerations to gen will cause us to exit the
+    // transport loop as if we finished the simulation normally.
+    settings::ngenerations = gen;
   }
-  if (element.size() > 0) output.push_back(element);
-  return output;
 }
 
-void PowerIterator::perform_regional_cancelation(
-    std::vector<Particle>& next_gen) {
-  size_t n_lost_boys = 0;
+void PowerIterator::perform_regional_cancellation(
+    std::vector<BankedParticle> &next_gen) {
+  mpi::Gatherv<BankedParticle>(next_gen, 0);
+  if (mpi::rank != 0) next_gen.clear();
 
-  double Xl = geometry::cancel_bins_low.x();
-  double Yl = geometry::cancel_bins_low.y();
-  double Zl = geometry::cancel_bins_low.z();
+  if (mpi::rank == 0) {
+    // Only perform cancellation if we are master !!
+    std::size_t n_lost_boys = 0;
 
-  double Px = geometry::cancel_bins_pitch[0];
-  double Py = geometry::cancel_bins_pitch[1];
-  double Pz = geometry::cancel_bins_pitch[2];
-
-  size_t Nx = geometry::cancel_bins_shape[0];
-  size_t Ny = geometry::cancel_bins_shape[1];
-  size_t Nz = geometry::cancel_bins_shape[2];
-
-  // CANNOT RUN IN PARALLEL DUE TO ADDING PARTICLES
-  for (size_t i = 0; i < next_gen.size(); i++) {
-    // Calculate indicies for particle
-    int nx = static_cast<int>(std::floor((next_gen[i].r().x() - Xl) / Px));
-    int ny = static_cast<int>(std::floor((next_gen[i].r().y() - Yl) / Py));
-    int nz = static_cast<int>(std::floor((next_gen[i].r().z() - Zl) / Pz));
-
-    // Only add particle if the bin is inside the mesh
-    if (nx >= 0 && nx < static_cast<int>(Nx) && ny >= 0 &&
-        ny < static_cast<int>(Ny) && nz >= 0 && nz < static_cast<int>(Nz)) {
-      CancelBinKey binKey{static_cast<size_t>(nx), static_cast<size_t>(ny),
-                          static_cast<size_t>(nz)};
-
-      double Xl_bin =
-          geometry::cancel_bins_low.x() + nx * geometry::cancel_bins_pitch[0];
-      double Xh_bin = Xl_bin + geometry::cancel_bins_pitch[0];
-      double Yl_bin =
-          geometry::cancel_bins_low.y() + ny * geometry::cancel_bins_pitch[1];
-      double Yh_bin = Yl_bin + geometry::cancel_bins_pitch[1];
-      double Zl_bin =
-          geometry::cancel_bins_low.z() + nz * geometry::cancel_bins_pitch[2];
-      double Zh_bin = Zl_bin + geometry::cancel_bins_pitch[2];
-
-      // Get bin center for material
-      Position binCenter(0.5 * (Xl_bin + Xh_bin), 0.5 * (Yl_bin + Yh_bin),
-                         0.5 * (Zl_bin + Zh_bin));
-
-      // Get bin cell/material
-      std::shared_ptr<Cell> binCell =
-          geometry::get_cell(binCenter, {1., 0., 0.}, 0);
-      std::shared_ptr<Material> binMat = binCell->material();
-
-      // Get material at particle location
-      std::shared_ptr<Cell> prtCell =
-          geometry::get_cell(next_gen[i].r(), next_gen[i].u(), 0);
-      std::shared_ptr<Material> prtMat = prtCell->material();
-
-      // Make sure binMat and prtMat are the same material
-      if (binMat->id() == prtMat->id()) {
-        // Check if bin exists
-        if (geometry::cancel_bins.find(binKey) != geometry::cancel_bins.end()) {
-          // Bin exists, add particle
-          geometry::cancel_bins[binKey].add_particle(
-              next_gen[i], Xl_bin, Xh_bin, Yl_bin, Yh_bin, Zl_bin, Zh_bin);
-        } else {
-          // Create bin
-          geometry::cancel_bins[binKey] = CancelBin(binMat);
-
-          // Add particle
-          geometry::cancel_bins[binKey].add_particle(
-              next_gen[i], Xl_bin, Xh_bin, Yl_bin, Yh_bin, Zl_bin, Zh_bin);
-        }
-      } else
-        n_lost_boys += 1;
-    } else
-      n_lost_boys += 1;
-
-  }  // End distribute all particle to CancelBins
-
-  if (n_lost_boys > 0)
-    std::cout << " There are " << n_lost_boys
-              << " particles with no cancellation bin.\n";
-
-  // Do cancelation for each bin. Can run in parallel. First get keys
-  std::vector<CancelBinKey> keys;
-  keys.reserve(geometry::cancel_bins.size());
-  for (auto it = geometry::cancel_bins.begin();
-       it != geometry::cancel_bins.end(); it++) {
-    keys.push_back(it->first);
-  }
-
-#pragma omp parallel
-  {
-#pragma omp for schedule(static)
-    for (size_t k = 0; k < keys.size(); k++) {
-      CancelBinKey key = keys[k];
-
-      double Xl_bin = geometry::cancel_bins_low.x() +
-                      key.i * geometry::cancel_bins_pitch[0];
-      double Xh_bin = Xl_bin + geometry::cancel_bins_pitch[0];
-      double Yl_bin = geometry::cancel_bins_low.y() +
-                      key.j * geometry::cancel_bins_pitch[1];
-      double Yh_bin = Yl_bin + geometry::cancel_bins_pitch[1];
-      double Zl_bin = geometry::cancel_bins_low.z() +
-                      key.k * geometry::cancel_bins_pitch[2];
-      double Zh_bin = Zl_bin + geometry::cancel_bins_pitch[2];
-
-      geometry::cancel_bins[key].perform_cancelation(Xl_bin, Xh_bin, Yl_bin,
-                                                     Yh_bin, Zl_bin, Zh_bin);
+    // Distribute Particles to Cancellation Bins
+    for (auto &p : next_gen) {
+      if (!cancelator->add_particle(p)) n_lost_boys++;
     }
-  }
-  // All particles which were placed into a cancellation bin from next_gen
-  // now have modified weights.
 
-  // Get uniform particles CANNOT DO IN PARALLEL
-  auto rng = rngs[0];
-  for (size_t k = 0; k < keys.size(); k++) {
-    CancelBinKey key = keys[k];
+    if (n_lost_boys > 0)
+      std::cout << " There are " << n_lost_boys
+                << " particles with no cancellation bin.\n";
 
-    double Xl_bin =
-        geometry::cancel_bins_low.x() + key.i * geometry::cancel_bins_pitch[0];
-    double Xh_bin = Xl_bin + geometry::cancel_bins_pitch[0];
-    double Yl_bin =
-        geometry::cancel_bins_low.y() + key.j * geometry::cancel_bins_pitch[1];
-    double Yh_bin = Yl_bin + geometry::cancel_bins_pitch[1];
-    double Zl_bin =
-        geometry::cancel_bins_low.z() + key.k * geometry::cancel_bins_pitch[2];
-    double Zh_bin = Zl_bin + geometry::cancel_bins_pitch[2];
+    // Perform Cancellation for each Bin
+    cancelator->perform_cancellation(settings::rng);
 
-    auto tmp = geometry::cancel_bins[key].get_uniform_particles(
-        rng, Xl_bin, Xh_bin, Yl_bin, Yh_bin, Zl_bin, Zh_bin);
+    // All particles which were placed into a cancellation bin from next_gen
+    // now have modified weights.
+    // Now we can get the uniform particles
+    auto tmp = cancelator->get_new_particles(settings::rng);
     next_gen.insert(next_gen.end(), tmp.begin(), tmp.end());
+    mpi::node_nparticles[0] += tmp.size();
+
+    // All done ! Clear cancelator for next run
+    cancelator->clear();
   }
+
+  // Since we added some "uniform particles" to the global fission bank, we need
+  // to re-calculate how many particles each node should have, and re-sync all
+  // of the banks
+  sync_banks(mpi::node_nparticles, next_gen);
 }

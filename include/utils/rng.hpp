@@ -39,25 +39,76 @@
 #ifndef RNG_H
 #define RNG_H
 
+#include <pcg_random.hpp>
 #include <random>
-#include <vector>
+#include <utils/constants.hpp>
 
 class RNG {
  public:
-  virtual ~RNG() = default;
+  // -----------------------------------------------------------------------
+  // rand()
+  //   This advances the pcg32 generator and produces a double
+  //   over the interval [0,1).
+  // -----------------------------------------------------------------------
+  static double rand(pcg32 &rng) { return unit_dist(rng); }
 
-  virtual void seed(uint64_t seed_) = 0;
+  // -----------------------------------------------------------------------
+  // uniform(double a, double b)
+  //   Returns a random double with a uniform distribution over the
+  //   interval [a, b)
+  //
+  //   f(x|a,b) = 1 / (b - a)
+  // -----------------------------------------------------------------------
+  static double uniform(pcg32 &rng, double a, double b) {
+    std::uniform_real_distribution<double> dist(a, b);
+    return dist(rng);
+  }
 
-  virtual double rand() = 0;
+  // -----------------------------------------------------------------------
+  // normal(double mu, double sigma)
+  //   Returns a random double from the normal (Gaussian) distribution,
+  //   defined by average value mu, and std sigma
+  //
+  //   f(x|mu,sigma) = (1/(sigma*sqrt(2*pi))) * exp(-0.5*((x - mu)/sigma)^2)
+  // -----------------------------------------------------------------------
+  static double normal(pcg32 &rng, double mu, double sigma) {
+    std::normal_distribution<double> dist(mu, sigma);
+    return dist(rng);
+  }
 
-  virtual double uniform(double a, double b) = 0;
+  // -----------------------------------------------------------------------
+  // exponential(double lambda)
+  //   Returns a random double from the exponential distribution,
+  //   defined by the average value 1/lambda.
+  //
+  //   f(x|lambda) = lambda * exp(-lambda * x)
+  // -----------------------------------------------------------------------
+  static double exponential(pcg32 &rng, double lambda) {
+    if (lambda == 0.) return INF;
 
-  virtual double normal(double mu, double sigma) = 0;
+    std::exponential_distribution<double> dist(lambda);
+    return dist(rng);
+  }
 
-  virtual double exponential(double lambda) = 0;
+  // -----------------------------------------------------------------------
+  // discrete(std::vector<double> weights)
+  //   Returns an integer over range [0,weights.size() - 1]
+  //   where probability of each integer is defined by the weight
+  //
+  //   P(i|w_0, w_1, ... w_k) = w_i / Sum[j = 1 to k](w_j)
+  // -----------------------------------------------------------------------
+  static int discrete(pcg32 &rng, const double *begin, const double *end) {
+    std::discrete_distribution<int> dist(begin, end);
+    return dist(rng);
+  }
 
-  virtual int discrete(const std::vector<double>& weights) = 0;
+  static int discrete(pcg32 &rng, const std::vector<double> &weights) {
+    std::discrete_distribution<int> dist(weights.begin(), weights.end());
+    return dist(rng);
+  }
 
+ private:
+  static std::uniform_real_distribution<double> unit_dist;
 };  // RNG
 
 #endif
