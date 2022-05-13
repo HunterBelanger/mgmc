@@ -1,13 +1,8 @@
 /*=============================================================================*
- * Copyright (C) 2021, Commissariat à l'Energie Atomique et aux Energies
+ * Copyright (C) 2021-2022, Commissariat à l'Energie Atomique et aux Energies
  * Alternatives
  *
  * Contributeur : Hunter Belanger (hunter.belanger@cea.fr)
- *
- * Ce logiciel est un programme informatique servant à faire des comparaisons
- * entre les méthodes de transport qui sont capable de traiter les milieux
- * continus avec la méthode Monte Carlo. Il résoud l'équation de Boltzmann
- * pour les particules neutres, à une vitesse et dans une dimension.
  *
  * Ce logiciel est régi par la licence CeCILL soumise au droit français et
  * respectant les principes de diffusion des logiciels libres. Vous pouvez
@@ -36,7 +31,10 @@
  * pris connaissance de la licence CeCILL, et que vous en avez accepté les
  * termes.
  *============================================================================*/
+#include <cmath>
 #include <simulation/particle.hpp>
+#include <sstream>
+#include <utils/error.hpp>
 
 Particle::Particle(Position r, Direction u, double engy, double wgt,
                    uint64_t id)
@@ -45,7 +43,14 @@ Particle::Particle(Position r, Direction u, double engy, double wgt,
       history_id_(id),
       secondaries(),
       history_fission_bank(),
-      r_birth_(state.position) {}
+      r_birth_(state.position) {
+  if (std::isnan(wgt)) {
+    std::stringstream mssg;
+    mssg << "Particle with id = " << id << " was instantiated with ";
+    mssg << "wgt = NaN.";
+    fatal_error(mssg.str(), __FILE__, __LINE__);
+  }
+}
 
 Particle::Particle(Position r, Direction u, double engy, double wgt,
                    double wgt2, uint64_t id)
@@ -54,4 +59,18 @@ Particle::Particle(Position r, Direction u, double engy, double wgt,
       history_id_(id),
       secondaries(),
       history_fission_bank(),
-      r_birth_(state.position) {}
+      r_birth_(state.position) {
+  if (std::isnan(wgt)) {
+    std::stringstream mssg;
+    mssg << "Particle with id = " << id << " was instantiated with ";
+    mssg << "wgt = NaN.";
+    fatal_error(mssg.str(), __FILE__, __LINE__);
+  }
+
+  if (std::isnan(wgt2)) {
+    std::stringstream mssg;
+    mssg << "Particle with id = " << id << " was instantiated with ";
+    mssg << "wgt2 = NaN.";
+    fatal_error(mssg.str(), __FILE__, __LINE__);
+  }
+}

@@ -1,13 +1,8 @@
 /*=============================================================================*
- * Copyright (C) 2021, Commissariat à l'Energie Atomique et aux Energies
+ * Copyright (C) 2021-2022, Commissariat à l'Energie Atomique et aux Energies
  * Alternatives
  *
  * Contributeur : Hunter Belanger (hunter.belanger@cea.fr)
- *
- * Ce logiciel est un programme informatique servant à faire des comparaisons
- * entre les méthodes de transport qui sont capable de traiter les milieux
- * continus avec la méthode Monte Carlo. Il résoud l'équation de Boltzmann
- * pour les particules neutres, à une vitesse et dans une dimension.
  *
  * Ce logiciel est régi par la licence CeCILL soumise au droit français et
  * respectant les principes de diffusion des logiciels libres. Vous pouvez
@@ -39,9 +34,13 @@
 #ifndef TALLIES_H
 #define TALLIES_H
 
+#include <yaml-cpp/yaml.h>
+
 #include <materials/material_helper.hpp>
-#include <simulation/mesh_tally.hpp>
+#include <simulation/collision_mesh_tally.hpp>
 #include <simulation/particle.hpp>
+#include <simulation/source_mesh_tally.hpp>
+#include <simulation/track_length_mesh_tally.hpp>
 #include <string>
 
 class Tallies {
@@ -49,19 +48,54 @@ class Tallies {
   Tallies(double tot_wgt);
   ~Tallies() = default;
 
-  void add_mesh_tally(std::shared_ptr<MeshTally> mtally);
+  void add_collision_mesh_tally(std::shared_ptr<CollisionMeshTally> cetally);
+  void add_track_length_mesh_tally(
+      std::shared_ptr<TrackLengthMeshTally> tltally);
+  void add_source_mesh_tally(std::shared_ptr<SourceMeshTally> stally);
+  void add_noise_source_mesh_tally(std::shared_ptr<SourceMeshTally> stally);
 
-  void score_collision(const Particle &p, MaterialHelper &mat, bool converged) {
+  void score_collision(const Particle& p, MaterialHelper& mat, bool converged) {
     // Only do spacial tallies if converged
-    if (converged && !mesh_tallies_.empty()) {
-      for (auto &tally : mesh_tallies_) tally->score_collision(p, mat);
+    if (converged && !collision_mesh_tallies_.empty()) {
+      for (auto& tally : collision_mesh_tallies_)
+        tally->score_collision(p, mat);
     }
   }
 
-  void score_flight(const Particle &p, double d, MaterialHelper &mat,
+  void score_flight(const Particle& p, double d, MaterialHelper& mat,
                     bool converged) {
-    if (converged && !mesh_tallies_.empty()) {
-      for (auto &tally : mesh_tallies_) tally->score_flight(p, d, mat);
+    if (converged && !track_length_mesh_tallies_.empty()) {
+      for (auto& tally : track_length_mesh_tallies_)
+        tally->score_flight(p, d, mat);
+    }
+  }
+
+  void score_source(const BankedParticle& p, bool converged) {
+    if (converged && !source_mesh_tallies_.empty()) {
+      for (auto& tally : source_mesh_tallies_) tally->score_source(p);
+    }
+  }
+
+  void score_source(const std::vector<BankedParticle>& vp, bool converged) {
+    if (converged && !source_mesh_tallies_.empty()) {
+      for (const auto& p : vp) {
+        for (auto& tally : source_mesh_tallies_) tally->score_source(p);
+      }
+    }
+  }
+
+  void score_noise_source(const BankedParticle& p, bool converged) {
+    if (converged && !noise_source_mesh_tallies_.empty()) {
+      for (auto& tally : noise_source_mesh_tallies_) tally->score_source(p);
+    }
+  }
+
+  void score_noise_source(const std::vector<BankedParticle>& vp,
+                          bool converged) {
+    if (converged && !noise_source_mesh_tallies_.empty()) {
+      for (const auto& p : vp) {
+        for (auto& tally : noise_source_mesh_tallies_) tally->score_source(p);
+      }
     }
   }
 
@@ -73,6 +107,7 @@ class Tallies {
   void score_k_trk(double scr);
   void score_leak(double scr);
   void score_k_tot(double scr);
+  void score_mig_area(double scr);
 
   void clear_generation();
 
@@ -111,6 +146,12 @@ class Tallies {
     return std::sqrt(k_tot_var / static_cast<double>(gen));
   }
 
+  double mig_area() const { return mig; }
+  double mig_area_avg() const { return mig_avg; }
+  double mig_area_err() const {
+    return std::sqrt(mig_var / static_cast<double>(gen));
+  }
+
   void write_tallies();
 
   void set_total_weight(double tot_wgt) { total_weight = tot_wgt; }
@@ -128,17 +169,24 @@ class Tallies {
   double k_trk_score;
   double leak_score;
   double k_tot_score;  // Weird keff for NWDT
+  double mig_area_score;
 
   double k_col, k_col_avg, k_col_var;
   double k_abs, k_abs_avg, k_abs_var;
   double k_trk, k_trk_avg, k_trk_var;
   double leak, leak_avg, leak_var;
   double k_tot, k_tot_avg, k_tot_var;  // Weird keff for NWDT
+  double mig, mig_avg, mig_var;
 
-  std::vector<std::shared_ptr<MeshTally>> mesh_tallies_;
+  std::vector<std::shared_ptr<CollisionMeshTally>> collision_mesh_tallies_;
+  std::vector<std::shared_ptr<TrackLengthMeshTally>> track_length_mesh_tallies_;
+  std::vector<std::shared_ptr<SourceMeshTally>> source_mesh_tallies_;
+  std::vector<std::shared_ptr<SourceMeshTally>> noise_source_mesh_tallies_;
 
-  void update_avg_and_var(double x, double &x_avg, double &x_var);
+  void update_avg_and_var(double x, double& x_avg, double& x_var);
 
 };  // Tallies
+
+void add_mesh_tally(Tallies& tallies, const YAML::Node& node);
 
 #endif  // MG_TALLIES_H

@@ -1,13 +1,8 @@
 /*=============================================================================*
- * Copyright (C) 2021, Commissariat à l'Energie Atomique et aux Energies
+ * Copyright (C) 2021-2022, Commissariat à l'Energie Atomique et aux Energies
  * Alternatives
  *
  * Contributeur : Hunter Belanger (hunter.belanger@cea.fr)
- *
- * Ce logiciel est un programme informatique servant à faire des comparaisons
- * entre les méthodes de transport qui sont capable de traiter les milieux
- * continus avec la méthode Monte Carlo. Il résoud l'équation de Boltzmann
- * pour les particules neutres, à une vitesse et dans une dimension.
  *
  * Ce logiciel est régi par la licence CeCILL soumise au droit français et
  * respectant les principes de diffusion des logiciels libres. Vous pouvez
@@ -73,22 +68,14 @@ class MeshTally {
   };
 
   MeshTally(Position low, Position hi, uint64_t nx, uint64_t ny, uint64_t nz,
-            const std::vector<double> &ebounds, TallyQuantity q,
-            std::string fname, uint32_t mt = 0);
+            const std::vector<double> &ebounds, std::string fname);
   virtual ~MeshTally() = default;
-
-  // Scoring method for the collision estimator
-  virtual void score_collision(const Particle &p, MaterialHelper &mat) = 0;
-
-  // Scoring method for the track-length estimator
-  virtual void score_flight(const Particle &p, double d,
-                            MaterialHelper &mat) = 0;
 
   void set_net_weight(double W);
 
   // multiplier must be the same across ALL MPI processes, as it is
   // applied after the MPI reduction of the generation scores.
-  void record_generation(double gen, double multiplier = 1.);
+  void record_generation(double multiplier = 1.);
 
   void clear_generation();
 
@@ -96,18 +83,16 @@ class MeshTally {
 
  protected:
   Position r_low, r_hi;
-  uint64_t Nx, Ny, Nz;
-  double dx, dy, dz, g, net_weight;
+  uint64_t Nx, Ny, Nz, g;
+  double dx, dy, dz, net_weight;
   std::vector<double> energy_bounds;
-  TallyQuantity quantity;
   std::string fname;
-  uint32_t mt;
 
   NDArray<double> tally_gen;
   NDArray<double> tally_avg;
   NDArray<double> tally_var;
-};
 
-std::shared_ptr<MeshTally> make_mesh_tally(const YAML::Node &node);
+  virtual std::string quantity_str() const = 0;
+};
 
 #endif

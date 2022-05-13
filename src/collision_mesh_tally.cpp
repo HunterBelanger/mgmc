@@ -1,13 +1,8 @@
 /*=============================================================================*
- * Copyright (C) 2021, Commissariat à l'Energie Atomique et aux Energies
+ * Copyright (C) 2021-2022, Commissariat à l'Energie Atomique et aux Energies
  * Alternatives
  *
  * Contributeur : Hunter Belanger (hunter.belanger@cea.fr)
- *
- * Ce logiciel est un programme informatique servant à faire des comparaisons
- * entre les méthodes de transport qui sont capable de traiter les milieux
- * continus avec la méthode Monte Carlo. Il résoud l'équation de Boltzmann
- * pour les particules neutres, à une vitesse et dans une dimension.
  *
  * Ce logiciel est régi par la licence CeCILL soumise au droit français et
  * respectant les principes de diffusion des logiciels libres. Vous pouvez
@@ -39,6 +34,9 @@
 #include <simulation/collision_mesh_tally.hpp>
 #include <sstream>
 #include <utils/error.hpp>
+#include <utils/position.hpp>
+#include <utils/settings.hpp>
+#include <vector>
 
 void CollisionMeshTally::score_collision(const Particle &p,
                                          MaterialHelper &mat) {
@@ -80,84 +78,76 @@ void CollisionMeshTally::score_collision(const Particle &p,
     // Must multiply score by correct factor depending on the observed
     // quantity. q = 0 corresponds to just the flux, so no modification.
     switch (quantity) {
-      case TallyQuantity::Flux:
+      case Quantity::Flux:
         scr *= p.wgt();
         break;
 
-      case TallyQuantity::Elastic:
+      case Quantity::Elastic:
         scr *= p.wgt() * mat.Eelastic(p.E());
         break;
 
-      case TallyQuantity::Absorption:
+      case Quantity::Absorption:
         scr *= p.wgt() * mat.Ea(p.E());
         break;
 
-      case TallyQuantity::Fission:
+      case Quantity::Fission:
         scr *= p.wgt() * mat.Ef(p.E());
         break;
 
-      case TallyQuantity::Total:
+      case Quantity::Total:
         scr *= p.wgt() * Et;
         break;
 
-      case TallyQuantity::MT:
+      case Quantity::MT:
         scr *= p.wgt() * mat.Emt(mt, p.E());
         break;
 
-      case TallyQuantity::RealFlux:
+      case Quantity::RealFlux:
         scr *= p.wgt();
         break;
 
-      case TallyQuantity::ImgFlux:
+      case Quantity::ImgFlux:
         scr *= p.wgt2();
         break;
 
-      case TallyQuantity::RealTotal:
+      case Quantity::RealTotal:
         scr *= p.wgt() * Et;
         break;
 
-      case TallyQuantity::ImgTotal:
+      case Quantity::ImgTotal:
         scr *= p.wgt2() * Et;
         break;
 
-      case TallyQuantity::RealElastic:
+      case Quantity::RealElastic:
         scr *= p.wgt() * mat.Eelastic(p.E());
         break;
 
-      case TallyQuantity::ImgElastic:
+      case Quantity::ImgElastic:
         scr *= p.wgt2() * mat.Eelastic(p.E());
         break;
 
-      case TallyQuantity::RealAbsorption:
+      case Quantity::RealAbsorption:
         scr *= p.wgt() * mat.Ea(p.E());
         break;
 
-      case TallyQuantity::ImgAbsorption:
+      case Quantity::ImgAbsorption:
         scr *= p.wgt2() * mat.Ea(p.E());
         break;
 
-      case TallyQuantity::RealFission:
+      case Quantity::RealFission:
         scr *= p.wgt() * mat.Ef(p.E());
         break;
 
-      case TallyQuantity::ImgFission:
+      case Quantity::ImgFission:
         scr *= p.wgt2() * mat.Ef(p.E());
         break;
 
-      case TallyQuantity::RealMT:
+      case Quantity::RealMT:
         scr *= p.wgt() * mat.Emt(mt, p.E());
         break;
 
-      case TallyQuantity::ImgMT:
+      case Quantity::ImgMT:
         scr *= p.wgt2() * mat.Emt(mt, p.E());
-        break;
-
-      case TallyQuantity::MagFlux:
-        scr *= std::sqrt(p.wgt() * p.wgt() + p.wgt2() * p.wgt2());
-        break;
-
-      case TallyQuantity::MagSqrFlux:
-        scr *= (p.wgt() * p.wgt() + p.wgt2() * p.wgt2());
         break;
     }
 #ifdef _OPENMP
@@ -165,4 +155,284 @@ void CollisionMeshTally::score_collision(const Particle &p,
 #endif
     tally_gen(uE, ui, uj, uk) += scr;
   }
+}
+
+std::string CollisionMeshTally::quantity_str() const {
+  switch (quantity) {
+    case Quantity::Flux:
+      return "Flux";
+      break;
+
+    case Quantity::Elastic:
+      return "Elastic";
+      break;
+
+    case Quantity::Absorption:
+      return "Absorption";
+      break;
+
+    case Quantity::Fission:
+      return "Fission\n";
+      break;
+
+    case Quantity::Total:
+      return "Total";
+      break;
+
+    case Quantity::MT:
+      return "MT = " + std::to_string(mt);
+      break;
+
+    case Quantity::RealFlux:
+      return "RealFlux";
+      break;
+
+    case Quantity::RealElastic:
+      return "RealElastic";
+      break;
+
+    case Quantity::RealAbsorption:
+      return "RealAbsorption";
+      break;
+
+    case Quantity::RealFission:
+      return "RealFission";
+      break;
+
+    case Quantity::RealTotal:
+      return "RealTotal";
+      break;
+
+    case Quantity::RealMT:
+      return "RealMT = " + std::to_string(mt);
+      break;
+
+    case Quantity::ImgFlux:
+      return "ImgFlux";
+      break;
+
+    case Quantity::ImgElastic:
+      return "ImgElastic";
+      break;
+
+    case Quantity::ImgAbsorption:
+      return "ImgAbsorption";
+      break;
+
+    case Quantity::ImgFission:
+      return "ImgFission";
+      break;
+
+    case Quantity::ImgTotal:
+      return "ImgTotal";
+      break;
+
+    case Quantity::ImgMT:
+      return "ImgMT = " + std::to_string(mt);
+      break;
+  }
+
+  // NEVER GETS HERE!
+  return "unkown";
+}
+
+std::shared_ptr<CollisionMeshTally> make_collision_mesh_tally(
+    const YAML::Node &node) {
+  using Quantity = CollisionMeshTally::Quantity;
+
+  // Get low position
+  double xl = 0., yl = 0., zl = 0.;
+  if (!node["low"] || !node["low"].IsSequence() || node["low"].size() != 3) {
+    std::string mssg = "Now valid low entry for mesh tally.";
+    fatal_error(mssg, __FILE__, __LINE__);
+  }
+  xl = node["low"][0].as<double>();
+  yl = node["low"][1].as<double>();
+  zl = node["low"][2].as<double>();
+  Position plow(xl, yl, zl);
+
+  // Get hi position
+  double xh = 0., yh = 0., zh = 0.;
+  if (!node["hi"] || !node["hi"].IsSequence() || node["hi"].size() != 3) {
+    std::string mssg = "Now valid hi entry for mesh tally.";
+    fatal_error(mssg, __FILE__, __LINE__);
+  }
+  xh = node["hi"][0].as<double>();
+  yh = node["hi"][1].as<double>();
+  zh = node["hi"][2].as<double>();
+  Position phi(xh, yh, zh);
+
+  // Check positions
+  if (plow.x() >= phi.x() || plow.y() >= phi.y() || plow.x() >= phi.x()) {
+    std::string mssg =
+        "Low coordinates for mesh tally must be less than hi coordinates.";
+    fatal_error(mssg, __FILE__, __LINE__);
+  }
+
+  // Get shape
+  uint64_t nx = 1, ny = 1, nz = 1;
+  if (node["shape"] &&
+      (!node["shape"].IsSequence() || node["shape"].size() != 3)) {
+    std::string mssg = "Invalid shape provided to mesh tally.";
+  } else if (node["shape"]) {
+    int64_t tmp_nx = node["shape"][0].as<int64_t>();
+    int64_t tmp_ny = node["shape"][1].as<int64_t>();
+    int64_t tmp_nz = node["shape"][2].as<int64_t>();
+
+    if (tmp_nx < 1 || tmp_ny < 1 || tmp_nz < 1) {
+      std::string mssg =
+          "Mesh tally shapes must be values greater than or equal to 1.";
+      fatal_error(mssg, __FILE__, __LINE__);
+    }
+
+    nx = static_cast<uint64_t>(tmp_nx);
+    ny = static_cast<uint64_t>(tmp_ny);
+    nz = static_cast<uint64_t>(tmp_nz);
+  }
+
+  // Get energy bounds
+  std::vector<double> ebounds;
+  if (!node["energy-bounds"] || !node["energy-bounds"].IsSequence()) {
+    std::string mssg = "No valid energy-bounds enetry provided to mesh tally.";
+    fatal_error(mssg, __FILE__, __LINE__);
+  }
+  ebounds = node["energy-bounds"].as<std::vector<double>>();
+  if (ebounds.size() < 2) {
+    std::string mssg = "Energy-bounds must have at least two entries.";
+    fatal_error(mssg, __FILE__, __LINE__);
+  } else if (!std::is_sorted(ebounds.begin(), ebounds.end())) {
+    std::string mssg = "Energy-bounds must be sorted.";
+    fatal_error(mssg, __FILE__, __LINE__);
+  } else if (ebounds.front() < 0.) {
+    std::string mssg = "All energy-bounds entries must be positive.";
+    fatal_error(mssg, __FILE__, __LINE__);
+  }
+
+  // Get name
+  std::string fname;
+  if (!node["name"] || !node["name"].IsScalar()) {
+    std::string mssg = "No valid name provided to mesh tally.";
+    fatal_error(mssg, __FILE__, __LINE__);
+  }
+  fname = node["name"].as<std::string>();
+
+  // Get tally quantity
+  uint32_t mt = 0;
+  std::string quant_str = "none";
+  Quantity quantity = Quantity::Flux;
+  if (!node["quantity"] || !node["quantity"].IsScalar()) {
+    std::string mssg = "No quantity entry provided to mesh tally.";
+    fatal_error(mssg, __FILE__, __LINE__);
+  }
+  quant_str = node["quantity"].as<std::string>();
+  if (quant_str == "flux") {
+    quantity = Quantity::Flux;
+  } else if (quant_str == "total") {
+    quantity = Quantity::Total;
+  } else if (quant_str == "elastic") {
+    quantity = Quantity::Elastic;
+  } else if (quant_str == "absorption") {
+    quantity = Quantity::Absorption;
+  } else if (quant_str == "fission") {
+    quantity = Quantity::Fission;
+  } else if (quant_str == "mt") {
+    quantity = Quantity::MT;
+
+    if (settings::energy_mode == settings::EnergyMode::MG) {
+      // Can't do an MT tally in MG mode !
+      std::string mssg = "Cannot do MT tallies in multi-group mode.";
+      fatal_error(mssg, __FILE__, __LINE__);
+    }
+
+    // Check for mt
+    if (!node["mt"] || !node["mt"].IsScalar()) {
+      std::string mssg =
+          "Quantity of \"mt\" selected, but no provided mt value.";
+      fatal_error(mssg, __FILE__, __LINE__);
+    }
+
+    int32_t tmp_mt = node["mt"].as<int32_t>();
+    if (tmp_mt < 4 || tmp_mt > 891) {
+      std::string mssg =
+          "The value " + std::to_string(tmp_mt) + " is not a valid MT.";
+      fatal_error(mssg, __FILE__, __LINE__);
+    }
+
+    mt = static_cast<uint32_t>(tmp_mt);
+  } else if (quant_str == "real-flux") {
+    quantity = Quantity::RealFlux;
+  } else if (quant_str == "real-total") {
+    quantity = Quantity::RealTotal;
+  } else if (quant_str == "real-elastic") {
+    quantity = Quantity::RealElastic;
+  } else if (quant_str == "real-absorption") {
+    quantity = Quantity::RealAbsorption;
+  } else if (quant_str == "real-fission") {
+    quantity = Quantity::RealFission;
+  } else if (quant_str == "real-mt") {
+    quantity = Quantity::RealMT;
+
+    if (settings::energy_mode == settings::EnergyMode::MG) {
+      // Can't do an MT tally in MG mode !
+      std::string mssg = "Cannot do MT tallies in multi-group mode.";
+      fatal_error(mssg, __FILE__, __LINE__);
+    }
+
+    // Check for mt
+    if (!node["mt"] || !node["mt"].IsScalar()) {
+      std::string mssg =
+          "Quantity of \"mt\" selected, but no provided mt value.";
+      fatal_error(mssg, __FILE__, __LINE__);
+    }
+
+    int32_t tmp_mt = node["mt"].as<int32_t>();
+    if (tmp_mt < 4 || tmp_mt > 891) {
+      std::string mssg =
+          "The value " + std::to_string(tmp_mt) + " is not a valid MT.";
+      fatal_error(mssg, __FILE__, __LINE__);
+    }
+
+    mt = static_cast<uint32_t>(tmp_mt);
+  } else if (quant_str == "img-flux") {
+    quantity = Quantity::ImgFlux;
+  } else if (quant_str == "img-total") {
+    quantity = Quantity::ImgTotal;
+  } else if (quant_str == "img-elastic") {
+    quantity = Quantity::ImgElastic;
+  } else if (quant_str == "img-absorption") {
+    quantity = Quantity::ImgAbsorption;
+  } else if (quant_str == "img-fission") {
+    quantity = Quantity::ImgFission;
+  } else if (quant_str == "img-mt") {
+    quantity = Quantity::ImgMT;
+
+    if (settings::energy_mode == settings::EnergyMode::MG) {
+      // Can't do an MT tally in MG mode !
+      std::string mssg = "Cannot do MT tallies in multi-group mode.";
+      fatal_error(mssg, __FILE__, __LINE__);
+    }
+
+    // Check for mt
+    if (!node["mt"] || !node["mt"].IsScalar()) {
+      std::string mssg =
+          "Quantity of \"mt\" selected, but no provided mt value.";
+      fatal_error(mssg, __FILE__, __LINE__);
+    }
+
+    int32_t tmp_mt = node["mt"].as<int32_t>();
+    if (tmp_mt < 4 || tmp_mt > 891) {
+      std::string mssg =
+          "The value " + std::to_string(tmp_mt) + " is not a valid MT.";
+      fatal_error(mssg, __FILE__, __LINE__);
+    }
+
+    mt = static_cast<uint32_t>(tmp_mt);
+  } else {
+    std::string mssg = "Unkown tally quantity \"" + quant_str + "\".";
+    fatal_error(mssg, __FILE__, __LINE__);
+  }
+
+  // Construct based on estimator type
+  return std::make_shared<CollisionMeshTally>(plow, phi, nx, ny, nz, ebounds,
+                                              quantity, fname, mt);
 }

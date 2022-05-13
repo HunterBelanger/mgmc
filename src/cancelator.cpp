@@ -1,13 +1,8 @@
 /*=============================================================================*
- * Copyright (C) 2021, Commissariat à l'Energie Atomique et aux Energies
+ * Copyright (C) 2021-2022, Commissariat à l'Energie Atomique et aux Energies
  * Alternatives
  *
  * Contributeur : Hunter Belanger (hunter.belanger@cea.fr)
- *
- * Ce logiciel est un programme informatique servant à faire des comparaisons
- * entre les méthodes de transport qui sont capable de traiter les milieux
- * continus avec la méthode Monte Carlo. Il résoud l'équation de Boltzmann
- * pour les particules neutres, à une vitesse et dans une dimension.
  *
  * Ce logiciel est régi par la licence CeCILL soumise au droit français et
  * respectant les principes de diffusion des logiciels libres. Vous pouvez
@@ -37,8 +32,9 @@
  * termes.
  *============================================================================*/
 #include <simulation/approximate_mesh_cancelator.hpp>
+#include <simulation/basic_exact_mg_cancelator.hpp>
 #include <simulation/cancelator.hpp>
-#include <simulation/exact_regional_mg_cancelator.hpp>
+#include <simulation/exact_mg_cancelator.hpp>
 #include <utils/error.hpp>
 #include <utils/settings.hpp>
 
@@ -51,26 +47,44 @@ std::shared_ptr<Cancelator> make_cancelator(const YAML::Node &node) {
 
   std::shared_ptr<Cancelator> cancelator = nullptr;
 
-  if (type == "approximate-mesh") {
+  if (type == "approximate") {
     cancelator = make_approximate_mesh_cancelator(node);
-  } else if (type == "exact-regional") {
+  } else if (type == "basic-exact") {
     // Check that we are not using surface-tracking !
     if (settings::tracking == settings::TrackingMode::SURFACE_TRACKING) {
       std::string mssg =
-          "exect-regional cancelators may not be used with surface-tracking.";
+          "basic-exect cancelators may not be used with surface-tracking.";
       fatal_error(mssg, __FILE__, __LINE__);
     }
 
     // Check that we are not in CE mode !
     if (settings::energy_mode == settings::EnergyMode::CE) {
       std::string mssg =
-          "exact-regional cancelators are not currently "
+          "basic-exact cancelators are not currently "
           "supported for continuous energy.";
       fatal_error(mssg, __FILE__, __LINE__);
     }
 
     // looks like we meet all requirments, make the cancelator
-    cancelator = make_exact_regional_mg_cancelator(node);
+    cancelator = make_basic_exact_mg_cancelator(node);
+  } else if (type == "exact") {
+    // Check that we are not using surface-tracking !
+    if (settings::tracking == settings::TrackingMode::SURFACE_TRACKING) {
+      std::string mssg =
+          "exect cancelators may not be used with surface-tracking.";
+      fatal_error(mssg, __FILE__, __LINE__);
+    }
+
+    // Check that we are not in CE mode !
+    if (settings::energy_mode == settings::EnergyMode::CE) {
+      std::string mssg =
+          "exact cancelators are not currently "
+          "supported for continuous energy.";
+      fatal_error(mssg, __FILE__, __LINE__);
+    }
+
+    // looks like we meet all requirments, make the cancelator
+    cancelator = make_exact_mg_cancelator(node);
   } else {
     std::string mssg = "Unkown cancelator type \"" + type + "\".";
     fatal_error(mssg, __FILE__, __LINE__);

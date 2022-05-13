@@ -1,13 +1,8 @@
 /*=============================================================================*
- * Copyright (C) 2021, Commissariat à l'Energie Atomique et aux Energies
+ * Copyright (C) 2021-2022, Commissariat à l'Energie Atomique et aux Energies
  * Alternatives
  *
  * Contributeur : Hunter Belanger (hunter.belanger@cea.fr)
- *
- * Ce logiciel est un programme informatique servant à faire des comparaisons
- * entre les méthodes de transport qui sont capable de traiter les milieux
- * continus avec la méthode Monte Carlo. Il résoud l'équation de Boltzmann
- * pour les particules neutres, à une vitesse et dans une dimension.
  *
  * Ce logiciel est régi par la licence CeCILL soumise au droit français et
  * respectant les principes de diffusion des logiciels libres. Vous pouvez
@@ -36,8 +31,8 @@
  * pris connaissance de la licence CeCILL, et que vous en avez accepté les
  * termes.
  *============================================================================*/
-#ifndef EXACT_REGIONAL_MG_CANCELATOR_H
-#define EXACT_REGIONAL_MG_CANCELATOR_H
+#ifndef BASIC_EXACT_MG_CANCELATOR_H
+#define BASIC_EXACT_MG_CANCELATOR_H
 
 #include <functional>
 #include <materials/material_helper.hpp>
@@ -46,13 +41,12 @@
 #include <simulation/cancelator.hpp>
 #include <unordered_map>
 
-class ExactRegionalMGCancelator : public Cancelator {
+class BasicExactMGCancelator : public Cancelator {
  public:
   enum class BetaMode { Zero, Minimum, OptAverageF, OptAverageGain };
 
-  ExactRegionalMGCancelator(Position low, Position hi, uint32_t Nx, uint32_t Ny,
-                            uint32_t Nz, BetaMode beta, bool sobol,
-                            uint32_t nsmp);
+  BasicExactMGCancelator(Position low, Position hi, uint32_t Nx, uint32_t Ny,
+                         uint32_t Nz, BetaMode beta, bool sobol, uint32_t nsmp);
 
   bool add_particle(BankedParticle &p) override final;
   void perform_cancellation(pcg32 &rng) override final;
@@ -121,20 +115,19 @@ class ExactRegionalMGCancelator : public Cancelator {
   std::optional<Position> sample_position_sobol(const Key &key, Material *mat,
                                                 unsigned long long &i) const;
 
-  double get_f(const Position &r, const Position &r_parent, double Esmp,
-               double Ef) const;
-  double get_min_f(const Key &key, const Position &r_parent, double Esmp,
-                   double Ef) const;
+  double get_f(const Position &r, const Position &r_parent, double Esmp) const;
+
+  double get_min_f(const Key &key, const Position &r_parent, double Esmp) const;
 
   double get_beta(const Key &key, const CancelBin &bin, std::size_t i,
-                  const Position &r_parent, double Esmp, double Ef, double wgt,
+                  const Position &r_parent, double Esmp, double wgt,
                   bool first_wgt) const;
 
   void cancel_bin(const Key &key, Material *mat, CancelBin &bin,
                   bool first_wgt);
 };
 
-std::shared_ptr<ExactRegionalMGCancelator> make_exact_regional_mg_cancelator(
+std::shared_ptr<BasicExactMGCancelator> make_basic_exact_mg_cancelator(
     const YAML::Node &node);
 
 #endif

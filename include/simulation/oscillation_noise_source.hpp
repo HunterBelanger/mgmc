@@ -1,13 +1,8 @@
 /*=============================================================================*
- * Copyright (C) 2021, Commissariat à l'Energie Atomique et aux Energies
+ * Copyright (C) 2021-2022, Commissariat à l'Energie Atomique et aux Energies
  * Alternatives
  *
  * Contributeur : Hunter Belanger (hunter.belanger@cea.fr)
- *
- * Ce logiciel est un programme informatique servant à faire des comparaisons
- * entre les méthodes de transport qui sont capable de traiter les milieux
- * continus avec la méthode Monte Carlo. Il résoud l'équation de Boltzmann
- * pour les particules neutres, à une vitesse et dans une dimension.
  *
  * Ce logiciel est régi par la licence CeCILL soumise au droit français et
  * respectant les principes de diffusion des logiciels libres. Vous pouvez
@@ -42,44 +37,32 @@
 #include <simulation/noise_source.hpp>
 #include <utils/position.hpp>
 
-// Represents neutron noise sources which take the form of
-// Et(E, t) = Et_0(E) + eps*Et_0(E)*cos(w_0 * t)
+// Pure virtual interface to allow for the sampling of neutron noise particles.
 class OscillationNoiseSource : public NoiseSource {
  public:
-  OscillationNoiseSource(Position low, Position hi, double eps_tot,
-                         double eps_fis, double eps_sct,
-                         double angular_frequency);
+  OscillationNoiseSource() = default;
+  virtual ~OscillationNoiseSource() = default;
 
-  bool is_inside(const Position &r, const Direction &u) const override final;
-  std::complex<double> dEt(const Position &r, const Direction &u, double E,
-                           double w) const override final;
-  std::complex<double> dEf(const Position &r, const Direction &u, double E,
-                           double w) const override final;
-  std::complex<double> dEelastic(const Position &r, const Direction &u,
-                                 double E, double w) const override final;
-  std::complex<double> dEmt(uint32_t mt, const Position &r, const Direction &u,
-                            double E, double w) const override final;
+  virtual std::complex<double> dEf(const Position &r, double E,
+                                   double w) const = 0;
 
-  std::complex<double> dEt_Et(const Position &r, const Direction &u, double E,
-                              double w) const override final;
-  std::complex<double> dEf_Ef(const Position &r, const Direction &u, double E,
-                              double w) const override final;
-  std::complex<double> dEelastic_Eelastic(const Position &r, const Direction &u,
-                                          double E,
-                                          double w) const override final;
-  std::complex<double> dEmt_Emt(uint32_t mt, const Position &r,
-                                const Direction &u, double E,
-                                double w) const override final;
+  virtual std::complex<double> dEelastic(const Position &r, double E,
+                                         double w) const = 0;
 
- private:
-  Position low_, hi_;
-  double w0_;
-  double eps_t_;
-  double eps_f_;
-  double eps_s_;
+  virtual std::complex<double> dEmt(uint32_t mt, const Position &r, double E,
+                                    double w) const = 0;
+
+  virtual std::complex<double> dEt_Et(const Position &r, double E,
+                                      double w) const = 0;
+
+  virtual std::complex<double> dEf_Ef(const Position &r, double E,
+                                      double w) const = 0;
+
+  virtual std::complex<double> dEelastic_Eelastic(const Position &r, double E,
+                                                  double w) const = 0;
+
+  virtual std::complex<double> dEmt_Emt(uint32_t mt, const Position &r,
+                                        double E, double w) const = 0;
 };
-
-std::shared_ptr<OscillationNoiseSource> make_oscillation_noise_source(
-    const YAML::Node &snode);
 
 #endif

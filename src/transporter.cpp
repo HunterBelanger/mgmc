@@ -1,13 +1,8 @@
 /*=============================================================================*
- * Copyright (C) 2021, Commissariat à l'Energie Atomique et aux Energies
+ * Copyright (C) 2021-2022, Commissariat à l'Energie Atomique et aux Energies
  * Alternatives
  *
  * Contributeur : Hunter Belanger (hunter.belanger@cea.fr)
- *
- * Ce logiciel est un programme informatique servant à faire des comparaisons
- * entre les méthodes de transport qui sont capable de traiter les milieux
- * continus avec la méthode Monte Carlo. Il résoud l'équation de Boltzmann
- * pour les particules neutres, à une vitesse et dans une dimension.
  *
  * Ce logiciel est régi par la licence CeCILL soumise au droit français et
  * respectant les principes de diffusion des logiciels libres. Vous pouvez
@@ -67,14 +62,24 @@ void Transporter::russian_roulette(Particle &p) {
   if (p.wgt() == 0. && p.wgt2() == 0.) p.kill();
 }
 
-void Transporter::collision(
-    Particle &p, MaterialHelper &mat, ThreadLocalScores &thread_scores,
-    bool noise, std::vector<std::shared_ptr<NoiseSource>> *noise_sources) {
+void Transporter::collision(Particle &p, MaterialHelper &mat,
+                            ThreadLocalScores &thread_scores, bool noise,
+                            const NoiseMaker *noise_maker) {
   // Score flux collision estimator with Sigma_t
   tallies->score_collision(p, mat, settings::converged);
   double k_col_scr = p.wgt() * mat.vEf(p.E()) / mat.Et(p.E(), noise);
+  double mig_dist = (p.r() - p.r_birth()).norm();
+  double mig_area_scr =
+      p.wgt() * mat.Ea(p.E()) / mat.Et(p.E()) * mig_dist * mig_dist;
   if (!noise) {
     thread_scores.k_col_score += k_col_scr;
+    thread_scores.mig_score += mig_area_scr;
+  }
+
+  // Sample noise source from the noise maker.
+  if (noise_maker) {
+    noise_maker->sample_noise_source(p, mat, tallies->keff(),
+                                     settings::w_noise);
   }
 
   // Sample a nuclide for the collision
@@ -99,14 +104,6 @@ void Transporter::collision(
     make_noise_copy(p, microxs);
   }
 
-  if (noise_sources && settings::branchless_noise) {
-    sample_branchless_noise(p, microxs, *nuclide, *noise_sources);
-  } else if (noise_sources && !settings::branchless_noise) {
-    // Sample fission portion of noise source.
-    sample_noise_source_from_fission(p, nuclide, microxs, *noise_sources);
-    sample_noise_source_from_copy(p, *noise_sources);
-  }
-
   // Implicit capture
   p.set_weight(p.wgt() * (1. - (microxs.absorption + microxs.noise_copy) /
                                    microxs.total));
@@ -118,147 +115,13 @@ void Transporter::collision(
 
   // Scatter particle
   if (p.is_alive()) {
-    // Noise frequency
-    std::optional<double> w_noise = std::nullopt;
-    if (noise || noise_sources) w_noise = settings::w_noise;
-    if (settings::branchless_noise) {
-      w_noise = std::nullopt;
-      noise_sources = nullptr;
-    }
-
     // Perform scatter with nuclide
-    nuclide->scatter(p, microxs.energy_index, w_noise, noise_sources);
+    nuclide->scatter(p, microxs.energy_index);
 
     if (p.E() < settings::min_energy) {
       p.kill();
     }
   }
-}
-
-void Transporter::sample_branchless_noise(
-    Particle &p, const MicroXSs &microxs, const Nuclide &nuclide,
-    std::vector<std::shared_ptr<NoiseSource>> &noise_sources) const {
-  // When doing the noise sampling, we have 3+Ng terms, where Ng is the number
-  // of delayed fission groups.
-  const std::size_t Ng{nuclide.num_delayed_groups()};
-  std::size_t Nt = 3 + Ng;
-
-  // Initialize vector to contain the info
-  std::vector<std::complex<double>> yield_sigma(Nt, {0., 0.});
-  std::vector<double> mod(Nt, 0.);
-  double sum_mods = 0.;
-
-  // Get xs ratios
-  std::complex<double> dEt_Et = {0., 0.};
-  std::complex<double> dEs_Es = {0., 0.};
-  std::complex<double> dEf_Ef = {0., 0.};
-  bool inside_a_noise_source = false;
-  for (const auto &ns : noise_sources) {
-    if (ns->is_inside(p.r(), p.u())) {
-      inside_a_noise_source = true;
-      dEt_Et += ns->dEt_Et(p.r(), p.u(), p.E(), settings::w_noise);
-      dEs_Es += ns->dEelastic_Eelastic(p.r(), p.u(), p.E(), settings::w_noise);
-      dEf_Ef += ns->dEf_Ef(p.r(), p.u(), p.E(), settings::w_noise);
-    }
-  }
-
-  // Not in noise source, don't make noise particles
-  if (!inside_a_noise_source) return;
-
-  // Copy Info
-  yield_sigma[0] = -dEt_Et * microxs.total;
-
-  // Scatter Info
-  yield_sigma[1] = dEs_Es * (microxs.total - microxs.absorption);
-
-  // Promp Fission Info
-  double vt = microxs.nu_total;
-  double vd = microxs.nu_delayed;
-  double vp = vt - vd;
-  yield_sigma[2] = vp * dEf_Ef * microxs.fission;
-
-  // Delayed Fission Info
-  double w = settings::w_noise;
-  for (std::size_t g = 0; g < Ng; g++) {
-    double Pg = nuclide.delayed_group_probability(g, p.E());
-    double lambda = nuclide.delayed_group_constant(g);
-    double denom = lambda * lambda + w * w;
-    yield_sigma[3 + g] = {lambda * lambda / denom, -lambda * w / denom};
-    yield_sigma[3 + g] *= vd * dEf_Ef * microxs.fission * Pg;
-  }
-
-  // Get all Mods
-  for (std::size_t i = 0; i < Nt; i++) {
-    mod[i] = std::abs(yield_sigma[i]);
-    sum_mods += mod[i];
-  }
-
-  // Sample reaction
-  const int j{RNG::discrete(p.rng, mod)};
-  double m = sum_mods / microxs.total;
-  std::complex<double> m_j = m * yield_sigma[j] / mod[j];
-  double E_out = p.E();
-  Direction u_out = p.u();
-
-  if (j >= static_cast<int>(mod.size())) {
-    // Shouldn't get here ! RNG::discrete is rather safe as I use
-    // std::discrete_distribution, but because I don't have a default
-    // check in the swithc, it's here anyway.
-    std::string mssg = "Invalid index when sampling branchless noise source.";
-    fatal_error(mssg, __FILE__, __LINE__);
-  }
-
-  switch (j) {
-    case 0:
-      // Copy
-      // Nothing to do, E_out and u_out initialized as the energy and
-      // direction from p already.
-      break;
-
-    case 1: {
-      // Scatter
-      auto info =
-          nuclide.sample_scatter(p.E(), p.u(), microxs.energy_index, p.rng);
-      E_out = info.energy;
-      u_out = info.direction;
-      m_j *= info.yield;
-      break;
-    }
-
-    case 2: {
-      // Prompt Fission
-      auto info = nuclide.sample_prompt_fission(p.E(), p.u(),
-                                                microxs.energy_index, p.rng);
-      E_out = info.energy;
-      u_out = info.direction;
-      break;
-    }
-
-    default: {
-      // Delayed Fission
-      auto info = nuclide.sample_delayed_fission(p.E(), p.u(), j, p.rng);
-      E_out = info.energy;
-      u_out = info.direction;
-      break;
-    }
-  }
-
-  std::complex<double> wgt = {p.wgt(), p.wgt2()};
-  wgt *= m_j;
-
-  // Create and return the neutron
-  BankedParticle p_noise{p.r(),
-                         u_out,
-                         E_out,
-                         wgt.real(),
-                         wgt.imag(),
-                         p.history_id(),
-                         p.daughter_counter(),
-                         p.previous_r(),
-                         p.E(),
-                         p.Esmp()};
-
-  p.add_noise_particle(p_noise);
 }
 
 void Transporter::make_noise_copy(Particle &p, const MicroXSs &microxs) const {
@@ -342,93 +205,5 @@ void Transporter::make_fission_neutrons(Particle &p, const MicroXSs &microxs,
         }
         break;
     }
-  }
-}
-
-void Transporter::sample_noise_source_from_copy(
-    Particle &p,
-    std::vector<std::shared_ptr<NoiseSource>> &noise_sources) const {
-  std::complex<double> weight_copy{p.wgt(), p.wgt2()};
-
-  // Get the weight modifier
-  std::complex<double> dEt_Et = {0., 0.};
-  bool inside_a_noise_source = false;
-  for (const auto &ns : noise_sources) {
-    if (ns->is_inside(p.r(), p.u())) {
-      inside_a_noise_source = true;
-      dEt_Et += ns->dEt_Et(p.r(), p.u(), p.E(), settings::w_noise);
-    }
-  }
-
-  if (inside_a_noise_source == false) {
-    // Not inside any source. Don't make noise
-    return;
-  }
-
-  // Negative needed for source sampling
-  weight_copy *= -dEt_Et;
-
-  // Create and return the neutron
-  BankedParticle p_noise{p.r(),
-                         p.u(),
-                         p.E(),
-                         weight_copy.real(),
-                         weight_copy.imag(),
-                         p.history_id(),
-                         p.daughter_counter(),
-                         p.previous_r(),
-                         p.E(),
-                         p.Esmp()};
-
-  p.add_noise_particle(p_noise);
-}
-
-void Transporter::sample_noise_source_from_fission(
-    Particle &p, const std::shared_ptr<Nuclide> nuclide,
-    const MicroXSs &microxs,
-    std::vector<std::shared_ptr<NoiseSource>> &noise_sources) const {
-  int n_new = 0;
-
-  // We don't multiply by the weight when getting the number of noise
-  // particles to make, as in the make_fission_neutron method, if we
-  // pass the noise frequency, it will automatically use the incident
-  // particle weight in the daughter particle weight.
-  double k_abs_scr = microxs.nu_total * microxs.fission / microxs.total;
-  n_new = std::floor(k_abs_scr / tallies->keff() + RNG::rand(p.rng));
-
-  // Probability of a fission neutron being a delayed neutron.
-  double P_delayed = microxs.nu_delayed / microxs.nu_total;
-
-  // Noise frequency
-  double w_noise = settings::w_noise;
-
-  // Get the weight modifier
-  std::complex<double> dEf_Ef = {0., 0.};
-  bool inside_a_noise_source = false;
-  for (const auto &ns : noise_sources) {
-    if (ns->is_inside(p.r(), p.u())) {
-      inside_a_noise_source = true;
-      dEf_Ef += ns->dEf_Ef(p.r(), p.u(), p.E(), w_noise);
-    }
-  }
-
-  if (inside_a_noise_source == false) {
-    // Don't make any particles !
-    return;
-  }
-
-  for (int i = 0; i < n_new; i++) {
-    auto fiss_noise_particle = nuclide->make_fission_neutron(
-        p, microxs.energy_index, P_delayed, w_noise);
-
-    // Modify weight
-    std::complex<double> fnp_weight{fiss_noise_particle.wgt,
-                                    fiss_noise_particle.wgt2};
-    fnp_weight *= dEf_Ef;
-    fiss_noise_particle.wgt = fnp_weight.real();
-    fiss_noise_particle.wgt2 = fnp_weight.imag();
-
-    // Save BankedParticle
-    p.add_noise_particle(fiss_noise_particle);
   }
 }

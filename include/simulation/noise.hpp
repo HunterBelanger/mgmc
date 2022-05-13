@@ -1,13 +1,8 @@
 /*=============================================================================*
- * Copyright (C) 2021, Commissariat à l'Energie Atomique et aux Energies
+ * Copyright (C) 2021-2022, Commissariat à l'Energie Atomique et aux Energies
  * Alternatives
  *
  * Contributeur : Hunter Belanger (hunter.belanger@cea.fr)
- *
- * Ce logiciel est un programme informatique servant à faire des comparaisons
- * entre les méthodes de transport qui sont capable de traiter les milieux
- * continus avec la méthode Monte Carlo. Il résoud l'équation de Boltzmann
- * pour les particules neutres, à une vitesse et dans une dimension.
  *
  * Ce logiciel est régi par la licence CeCILL soumise au droit français et
  * respectant les principes de diffusion des logiciels libres. Vous pouvez
@@ -41,44 +36,28 @@
 
 #include <memory>
 #include <simulation/cancelator.hpp>
-#include <simulation/noise_source.hpp>
+#include <simulation/noise_maker.hpp>
 #include <simulation/simulation.hpp>
-
-// TEST ONLY FOR WRITING NOISE SOURCE
-#include <ndarray.hpp>
 
 class Noise : public Simulation {
  public:
   Noise(std::shared_ptr<Tallies> i_t, std::shared_ptr<Transporter> i_tr,
-        std::vector<std::shared_ptr<Source>> srcs,
-        std::vector<std::shared_ptr<NoiseSource>> noise_srcs)
+        std::vector<std::shared_ptr<Source>> srcs, NoiseMaker noise_mkr)
       : Simulation(i_t, i_tr, srcs),
-        noise_sources(noise_srcs),
+        noise_maker(noise_mkr),
         bank(),
         noise_bank(),
         noise_timer(),
         cancellation_timer(),
         power_iteration_timer(),
         convergence_timer(),
-        noise_batch_timer(),
-        source_gen(),
-        source_avg(),
-        source_var() {
-    source_gen.reallocate({2, 2, shape[0], shape[1], shape[2]});
-    source_avg.reallocate({2, 2, shape[0], shape[1], shape[2]});
-    source_var.reallocate({2, 2, shape[0], shape[1], shape[2]});
-
-    source_gen.fill(0.);
-    source_avg.fill(0.);
-    source_var.fill(0.);
-  }
+        noise_batch_timer() {}
 
   Noise(std::shared_ptr<Tallies> i_t, std::shared_ptr<Transporter> i_tr,
         std::vector<std::shared_ptr<Source>> srcs,
-        std::shared_ptr<Cancelator> cancel,
-        std::vector<std::shared_ptr<NoiseSource>> noise_srcs)
+        std::shared_ptr<Cancelator> cancel, NoiseMaker noise_mkr)
       : Simulation(i_t, i_tr, srcs),
-        noise_sources(noise_srcs),
+        noise_maker(noise_mkr),
         bank(),
         noise_bank(),
         noise_timer(),
@@ -86,25 +65,14 @@ class Noise : public Simulation {
         power_iteration_timer(),
         convergence_timer(),
         noise_batch_timer(),
-        cancelator(cancel),
-        source_gen(),
-        source_avg(),
-        source_var() {
-    source_gen.reallocate({2, 2, shape[0], shape[1], shape[2]});
-    source_avg.reallocate({2, 2, shape[0], shape[1], shape[2]});
-    source_var.reallocate({2, 2, shape[0], shape[1], shape[2]});
-
-    source_gen.fill(0.);
-    source_avg.fill(0.);
-    source_var.fill(0.);
-  }
+        cancelator(cancel) {}
 
   void initialize() override final;
   void run() override final;
   void premature_kill() override final;
 
  private:
-  std::vector<std::shared_ptr<NoiseSource>> noise_sources;
+  NoiseMaker noise_maker;
   std::vector<Particle> bank;
   std::vector<BankedParticle> noise_bank;
   Timer noise_timer;
@@ -117,19 +85,6 @@ class Noise : public Simulation {
   int pi_gen = 0;       // Counter for number of power iteration generations
   int Nnet = 0, Npos = 0, Nneg = 0, Ntot = 0;
   int Wnet = 0, Wpos = 0, Wneg = 0, Wtot = 0;
-
-  //-------------------------------------------------
-  // TESTING ONLY
-  NDArray<double> source_gen;
-  NDArray<double> source_avg;
-  NDArray<double> source_var;
-  Position r_low = Position(2.1543, -2.8857, -10.79);
-  Position r_hi = Position(2.8857, -2.1543, 10.79);
-  std::array<uint32_t, 3> shape{1, 1, 1};
-  int noise_source_gen = 0;
-  void tally_noise_source(const std::vector<BankedParticle> &nbank);
-  void write_noise_source();
-  //-------------------------------------------------
 
   // Private helper methods
   void compute_pre_cancellation_entropy(std::vector<BankedParticle> &next_gen);

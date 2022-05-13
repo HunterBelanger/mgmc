@@ -1,13 +1,8 @@
 /*=============================================================================*
- * Copyright (C) 2021, Commissariat à l'Energie Atomique et aux Energies
+ * Copyright (C) 2021-2022, Commissariat à l'Energie Atomique et aux Energies
  * Alternatives
  *
  * Contributeur : Hunter Belanger (hunter.belanger@cea.fr)
- *
- * Ce logiciel est un programme informatique servant à faire des comparaisons
- * entre les méthodes de transport qui sont capable de traiter les milieux
- * continus avec la méthode Monte Carlo. Il résoud l'équation de Boltzmann
- * pour les particules neutres, à une vitesse et dans une dimension.
  *
  * Ce logiciel est régi par la licence CeCILL soumise au droit français et
  * respectant les principes de diffusion des logiciels libres. Vous pouvez
@@ -44,6 +39,7 @@
 #include <map>
 #include <memory>
 #include <simulation/cancelator.hpp>
+#include <simulation/noise_maker.hpp>
 #include <simulation/noise_source.hpp>
 #include <simulation/simulation.hpp>
 #include <simulation/source.hpp>
@@ -62,7 +58,7 @@ extern std::map<uint32_t, size_t> lattice_id_to_indx;
 //===========================================================================
 // Object to build Simulation
 extern std::vector<std::shared_ptr<Source>> sources;
-extern std::vector<std::shared_ptr<NoiseSource>> noise_sources;
+extern NoiseMaker noise_maker;
 extern std::shared_ptr<Tallies> tallies;
 extern std::shared_ptr<Transporter> transporter;
 extern std::shared_ptr<Simulation> simulation;

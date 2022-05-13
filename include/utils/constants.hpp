@@ -1,13 +1,8 @@
 /*=============================================================================*
- * Copyright (C) 2021, Commissariat à l'Energie Atomique et aux Energies
+ * Copyright (C) 2021-2022, Commissariat à l'Energie Atomique et aux Energies
  * Alternatives
  *
  * Contributeur : Hunter Belanger (hunter.belanger@cea.fr)
- *
- * Ce logiciel est un programme informatique servant à faire des comparaisons
- * entre les méthodes de transport qui sont capable de traiter les milieux
- * continus avec la méthode Monte Carlo. Il résoud l'équation de Boltzmann
- * pour les particules neutres, à une vitesse et dans une dimension.
  *
  * Ce logiciel est régi par la licence CeCILL soumise au droit français et
  * respectant les principes de diffusion des logiciels libres. Vous pouvez
@@ -50,7 +45,7 @@ constexpr int VERSION_PATCH{0};
 constexpr bool DEVELOPMENT_VERSION{false};
 //#define DEV_VERSION  // TO BE REMOVED FOR NON-DEV VERSIONS
 constexpr int COPYRIGHT_YEAR{2021};
-#define MGMC_VERSION_STRING "0.2.0-alpha"
+#define MGMC_VERSION_STRING "0.2.0"
 //  constexpr const char VERSION_STRING[] = {VERSION_MAJOR+'0', '.',
 //    VERSION_MINOR+'0','.',VERSION_PATCH+'0'};
 
@@ -65,6 +60,7 @@ constexpr double EV_TO_MEV{1.E-6};
 constexpr double N_MASS_EV{939.56542052 * MEV_TO_EV};
 constexpr double C_CM_S{29979245800.0};
 constexpr double N_AVAGADRO{0.6022140857};  // [10^24 / mol]
+constexpr double TOLERANCE{0.0001};
 
 //============================================================================
 // Program Parameters

@@ -1,13 +1,8 @@
 /*=============================================================================*
- * Copyright (C) 2021, Commissariat à l'Energie Atomique et aux Energies
+ * Copyright (C) 2021-2022, Commissariat à l'Energie Atomique et aux Energies
  * Alternatives
  *
  * Contributeur : Hunter Belanger (hunter.belanger@cea.fr)
- *
- * Ce logiciel est un programme informatique servant à faire des comparaisons
- * entre les méthodes de transport qui sont capable de traiter les milieux
- * continus avec la méthode Monte Carlo. Il résoud l'équation de Boltzmann
- * pour les particules neutres, à une vitesse et dans une dimension.
  *
  * Ce logiciel est régi par la licence CeCILL soumise au droit français et
  * respectant les principes de diffusion des logiciels libres. Vous pouvez
@@ -41,7 +36,6 @@
 #include <omp.h>
 #endif
 
-#include <PapillonNDL/cross_section.hpp>
 #include <algorithm>
 #include <iomanip>
 #include <materials/material.hpp>
@@ -112,8 +106,7 @@ DeltaTracker::DeltaTracker(std::shared_ptr<Tallies> i_t)
 
 std::vector<BankedParticle> DeltaTracker::transport(
     std::vector<Particle> &bank, bool noise,
-    std::vector<BankedParticle> *noise_bank,
-    std::vector<std::shared_ptr<NoiseSource>> *noise_sources) {
+    std::vector<BankedParticle> *noise_bank, const NoiseMaker *noise_maker) {
 #ifdef _OPENMP
 #pragma omp parallel
 #endif
@@ -152,13 +145,37 @@ std::vector<BankedParticle> DeltaTracker::transport(
         double d_coll = RNG::exponential(p.rng, Emajorant);
         auto bound = trkr.boundary();
 
-        if (bound.distance < d_coll) {
+        // Score track length tally for boundary distance.
+        // This is here because flux-like tallies are allowed with DT.
+        // No other quantity should be scored with a TLE, as an error
+        // should have been thrown when building all tallies.
+        tallies->score_flight(p, std::min(d_coll, bound.distance), mat,
+                              settings::converged);
+
+        if (bound.distance < d_coll ||
+            std::abs(bound.distance - d_coll) < 100. * SURFACE_COINCIDENT) {
           if (bound.boundary_type == BoundaryType::Vacuum) {
             p.kill();
             thread_scores.leakage_score += p.wgt();
             Position r_leak = p.r() + bound.distance * p.u();
+            thread_scores.mig_score +=
+                p.wgt() * (r_leak - p.r_birth()) * (r_leak - p.r_birth());
           } else if (bound.boundary_type == BoundaryType::Reflective) {
             trkr.do_reflection(p, bound);
+            // Check if we are lost
+            if (trkr.is_lost()) {
+              std::stringstream mssg;
+              mssg << "Particle " << p.history_id() << ".";
+              mssg << p.secondary_id() << " has become lost.\n";
+              mssg << "Previous valid coordinates: r = " << p.previous_r();
+              mssg << ", u = " << p.previous_u() << ".\n";
+              mssg << "Attempted reflection with surface "
+                   << geometry::surfaces[bound.surface_index]->id();
+              mssg << " at a distance of " << bound.distance << " cm.\n";
+              mssg << "Currently lost at r = " << trkr.r()
+                   << ", u = " << trkr.u() << ".";
+              fatal_error(mssg.str(), __FILE__, __LINE__);
+            }
           } else {
             fatal_error("Help me, how did I get here ?", __FILE__, __LINE__);
           }
@@ -167,23 +184,26 @@ std::vector<BankedParticle> DeltaTracker::transport(
           p.move(d_coll);
           trkr.move(d_coll);
           trkr.get_current();
+          // Check if we are lost
+          if (trkr.is_lost()) {
+            std::stringstream mssg;
+            mssg << "Particle " << p.history_id() << ".";
+            mssg << p.secondary_id() << " has become lost.\n";
+            mssg << "Previous valid coordinates: r = " << p.previous_r();
+            mssg << ", u = " << p.previous_u() << ".\n";
+            mssg << "Attempted to fly a distance of " << d_coll << " cm.\n";
+            mssg << "Currently lost at r = " << trkr.r() << ", u = " << trkr.u()
+                 << ".";
+            fatal_error(mssg.str(), __FILE__, __LINE__);
+          }
           mat.set_material(trkr.material(), p.E());
 
           // Get true cross section here
           double Et = mat.Et(p.E(), noise);
 
           if (Et - Emajorant > 1.E-10) {
-#ifdef _OPENMP
-#pragma omp critical
-#endif
-            {
-              std::cout << " E = " << std::setprecision(18) << p.E() << "\n";
-              std::cout << " Et   = " << std::setprecision(18) << Et << "\n";
-              std::cout << " Emaj = " << std::setprecision(18) << Emajorant
-                        << "\n";
-              std::string mssg = "Total cross section excedeed majorant.";
-              fatal_error(mssg, __FILE__, __LINE__);
-            }
+            std::string mssg = "Total cross section excedeed majorant.";
+            fatal_error(mssg, __FILE__, __LINE__);
           }
 
           if (RNG::rand(p.rng) < (Et / Emajorant)) {
@@ -193,9 +213,12 @@ std::vector<BankedParticle> DeltaTracker::transport(
         }
 
         if (p.is_alive() && had_collision) {  // real collision
-          collision(p, mat, thread_scores, noise, noise_sources);
+          collision(p, mat, thread_scores, noise, noise_maker);
           trkr.set_u(p.u());
-        }  // If alive for real collision
+          p.set_previous_collision_real();
+        } else if (p.is_alive()) {  // Virtual collision
+          p.set_previous_collision_virtual();
+        }
 
         if (!p.is_alive()) {
           // Attempt a resurection
@@ -205,6 +228,15 @@ std::vector<BankedParticle> DeltaTracker::transport(
             trkr.set_r(p.r());
             trkr.set_u(p.u());
             trkr.restart_get_current();
+            // Check if we are lost
+            if (trkr.is_lost()) {
+              std::stringstream mssg;
+              mssg << "Particle " << p.history_id() << ".";
+              mssg << p.secondary_id() << " has become lost.\n";
+              mssg << "Attempted resurection at r = " << trkr.r();
+              mssg << ", u = " << trkr.u() << ".";
+              fatal_error(mssg.str(), __FILE__, __LINE__);
+            }
             mat.set_material(trkr.material(), p.E());
           } else if (settings::rng_stride_warnings) {
             // History is truly dead.
@@ -228,11 +260,13 @@ std::vector<BankedParticle> DeltaTracker::transport(
     tallies->score_k_trk(thread_scores.k_trk_score);
     tallies->score_k_tot(thread_scores.k_tot_score);
     tallies->score_leak(thread_scores.leakage_score);
+    tallies->score_mig_area(thread_scores.mig_score);
     thread_scores.k_col_score = 0.;
     thread_scores.k_abs_score = 0.;
     thread_scores.k_trk_score = 0.;
     thread_scores.k_tot_score = 0.;
     thread_scores.leakage_score = 0.;
+    thread_scores.mig_score = 0.;
   }  // Parallel
 
   // Vector to contain all fission daughters for all threads
@@ -243,7 +277,7 @@ std::vector<BankedParticle> DeltaTracker::transport(
     p.empty_fission_bank(fission_neutrons);
   }
 
-  if (noise_bank && noise_sources) {
+  if (noise_bank && noise_maker) {
     for (auto &p : bank) {
       p.empty_noise_bank(*noise_bank);
     }

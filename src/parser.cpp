@@ -1,13 +1,8 @@
 /*=============================================================================*
- * Copyright (C) 2021, Commissariat à l'Energie Atomique et aux Energies
+ * Copyright (C) 2021-2022, Commissariat à l'Energie Atomique et aux Energies
  * Alternatives
  *
  * Contributeur : Hunter Belanger (hunter.belanger@cea.fr)
- *
- * Ce logiciel est un programme informatique servant à faire des comparaisons
- * entre les méthodes de transport qui sont capable de traiter les milieux
- * continus avec la méthode Monte Carlo. Il résoud l'équation de Boltzmann
- * pour les particules neutres, à une vitesse et dans une dimension.
  *
  * Ce logiciel est régi par la licence CeCILL soumise au droit français et
  * respectant les principes de diffusion des logiciels libres. Vous pouvez
@@ -74,7 +69,7 @@ std::map<uint32_t, size_t> lattice_id_to_indx;
 //===========================================================================
 // Objects to build Simulation
 std::vector<std::shared_ptr<Source>> sources;
-std::vector<std::shared_ptr<NoiseSource>> noise_sources;
+NoiseMaker noise_maker;
 std::shared_ptr<Tallies> tallies = nullptr;
 std::shared_ptr<Transporter> transporter = nullptr;
 std::shared_ptr<Simulation> simulation = nullptr;
@@ -509,33 +504,6 @@ void make_settings(YAML::Node input) {
           fatal_error(mssg, __FILE__, __LINE__);
         }
       }
-
-      // If we are running noise, we need to get the group speeds !
-      if (settings::mode == settings::SimulationMode::NOISE) {
-        if (!settnode["group-speeds"] ||
-            !settnode["group-speeds"].IsSequence() ||
-            !(settnode["group-speeds"].size() == settings::ngroups)) {
-          std::string mssg = "No valid group-speeds entry found in settings.";
-          fatal_error(mssg, __FILE__, __LINE__);
-        }
-
-        settings::mg_speeds =
-            settnode["group-speeds"].as<std::vector<double>>();
-
-        // Check that it is sorted and that there are no negative values
-        for (const auto &gs : settings::mg_speeds) {
-          if (gs <= 0.) {
-            std::string mssg = "Zero or negative group speed found.";
-            fatal_error(mssg, __FILE__, __LINE__);
-          }
-        }
-
-        if (!std::is_sorted(settings::mg_speeds.rbegin(),
-                            settings::mg_speeds.rend())) {
-          std::string mssg = "Group speeds are not in decreasing order.";
-          fatal_error(mssg, __FILE__, __LINE__);
-        }
-      }
     }
 
     // Get number of particles
@@ -624,16 +592,6 @@ void make_settings(YAML::Node input) {
       } else if (settnode["inner-generations"]) {
         std::string mssg =
             "Invalid \"inner-generations\" entry provided in settings.";
-        fatal_error(mssg, __FILE__, __LINE__);
-      }
-
-      // Get the branchless_noise option
-      if (settnode["branchless-noise"] &&
-          settnode["branchless-noise"].IsScalar()) {
-        settings::branchless_noise = settnode["branchless-noise"].as<bool>();
-      } else if (settnode["branchless-noise"]) {
-        std::string mssg =
-            "Invalid \"branchless-noise\" entry provided in settings.";
         fatal_error(mssg, __FILE__, __LINE__);
       }
 
@@ -745,7 +703,7 @@ void make_tallies(YAML::Node input) {
 
   // Add all spatial mesh tallies to the tallies instance
   for (size_t t = 0; t < input["tallies"].size(); t++) {
-    tallies->add_mesh_tally(make_mesh_tally(input["tallies"][t]));
+    add_mesh_tally(*tallies, input["tallies"][t]);
   }
 
   if (settings::mode == settings::SimulationMode::NOISE) {
@@ -783,8 +741,8 @@ void make_cancellation_bins(YAML::Node input) {
   // Make sure we are using cancelation with a valid transport method !
   if (settings::mode == settings::SimulationMode::FIXED_SOURCE) {
     std::string mssg =
-        "Cancellation may only be used with k-eigenvalue, "
-        "modified-fixed-source, or noise problems.";
+        "Cancellation may only be used with k-eigenvalue "
+        "or noise problems.";
     fatal_error(mssg, __FILE__, __LINE__);
   }
 
@@ -813,7 +771,7 @@ void make_noise_sources(YAML::Node input) {
   if (input["noise-sources"] && input["noise-sources"].IsSequence()) {
     // Do all sources
     for (size_t s = 0; s < input["noise-sources"].size(); s++) {
-      noise_sources.push_back(make_noise_source(input["noise-sources"][s]));
+      noise_maker.add_noise_source(input["noise-sources"][s]);
     }
   } else if (settings::mode == settings::SimulationMode::NOISE) {
     // No source file given
@@ -821,7 +779,7 @@ void make_noise_sources(YAML::Node input) {
     fatal_error(mssg, __FILE__, __LINE__);
   }
 
-  if (noise_sources.size() == 0 &&
+  if (noise_maker.num_noise_sources() == 0 &&
       settings::mode == settings::SimulationMode::NOISE) {
     std::string mssg = "No noise source specified for noise problem.";
     fatal_error(mssg, __FILE__, __LINE__);
@@ -838,8 +796,8 @@ void make_simulation() {
         simulation = std::make_shared<PowerIterator>(tallies, transporter,
                                                      sources, cancelator);
       }
-
       break;
+
     case settings::SimulationMode::FIXED_SOURCE:
       simulation = std::make_shared<FixedSource>(tallies, transporter, sources);
       break;
@@ -847,11 +805,11 @@ void make_simulation() {
     case settings::SimulationMode::NOISE:
       if (!settings::regional_cancellation &&
           !settings::regional_cancellation_noise) {
-        simulation = std::make_shared<Noise>(tallies, transporter, sources,
-                                             noise_sources);
+        simulation =
+            std::make_shared<Noise>(tallies, transporter, sources, noise_maker);
       } else {
         simulation = std::make_shared<Noise>(tallies, transporter, sources,
-                                             cancelator, noise_sources);
+                                             cancelator, noise_maker);
       }
       break;
   }

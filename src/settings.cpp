@@ -1,13 +1,8 @@
 /*=============================================================================*
- * Copyright (C) 2021, Commissariat à l'Energie Atomique et aux Energies
+ * Copyright (C) 2021-2022, Commissariat à l'Energie Atomique et aux Energies
  * Alternatives
  *
  * Contributeur : Hunter Belanger (hunter.belanger@cea.fr)
- *
- * Ce logiciel est un programme informatique servant à faire des comparaisons
- * entre les méthodes de transport qui sont capable de traiter les milieux
- * continus avec la méthode Monte Carlo. Il résoud l'équation de Boltzmann
- * pour les particules neutres, à une vitesse et dans une dimension.
  *
  * Ce logiciel est régi par la licence CeCILL soumise au droit français et
  * respectant les principes de diffusion des logiciels libres. Vous pouvez
@@ -79,7 +74,6 @@ bool regional_cancellation = false;
 bool regional_cancellation_noise = false;
 
 bool inner_generations = true;
-bool branchless_noise = false;
 bool normalize_noise_source = true;
 bool rng_stride_warnings = false;
 
@@ -88,7 +82,18 @@ bool load_source_file = false;
 
 // Energy bounds for multi-group mode
 std::vector<double> energy_bounds{};
-std::vector<double> mg_speeds{};
+bool chi_matrix = false;
+bool use_virtual_collisions = true;
+std::size_t group(double E) {
+  if (energy_bounds.size() <= 1) return 0;
+
+  for (std::size_t g = 0; g < energy_bounds.size() - 1; g++) {
+    if (energy_bounds[g] <= E && E <= energy_bounds[g + 1]) return g;
+  }
+
+  // Should never get here
+  return 0;
+}
 std::vector<double> sample_xs_ratio{};
 
 std::string output_file_name = "output.txt";

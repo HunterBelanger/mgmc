@@ -1,13 +1,8 @@
 /*=============================================================================*
- * Copyright (C) 2021, Commissariat à l'Energie Atomique et aux Energies
+ * Copyright (C) 2021-2022, Commissariat à l'Energie Atomique et aux Energies
  * Alternatives
  *
  * Contributeur : Hunter Belanger (hunter.belanger@cea.fr)
- *
- * Ce logiciel est un programme informatique servant à faire des comparaisons
- * entre les méthodes de transport qui sont capable de traiter les milieux
- * continus avec la méthode Monte Carlo. Il résoud l'équation de Boltzmann
- * pour les particules neutres, à une vitesse et dans une dimension.
  *
  * Ce logiciel est régi par la licence CeCILL soumise au droit français et
  * respectant les principes de diffusion des logiciels libres. Vous pouvez
@@ -92,7 +87,8 @@ class Tracker {
   int32_t surface_token() const { return surface_token_; }
   void set_surface_token(int32_t st) { surface_token_ = st; }
 
-  std::shared_ptr<Material> material() { return current_mat; }
+  const std::shared_ptr<Material> &material() { return current_mat; }
+  const std::shared_ptr<Cell> &cell() { return current_cell; }
 
   geometry::Boundary boundary() const {
     return geometry::get_boundary(r_, u_, surface_token_);

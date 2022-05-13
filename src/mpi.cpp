@@ -1,13 +1,8 @@
 /*=============================================================================*
- * Copyright (C) 2021, Commissariat à l'Energie Atomique et aux Energies
+ * Copyright (C) 2021-2022, Commissariat à l'Energie Atomique et aux Energies
  * Alternatives
  *
  * Contributeur : Hunter Belanger (hunter.belanger@cea.fr)
- *
- * Ce logiciel est un programme informatique servant à faire des comparaisons
- * entre les méthodes de transport qui sont capable de traiter les milieux
- * continus avec la méthode Monte Carlo. Il résoud l'équation de Boltzmann
- * pour les particules neutres, à une vitesse et dans une dimension.
  *
  * Ce logiciel est régi par la licence CeCILL soumise au droit français et
  * respectant les principes de diffusion des logiciels libres. Vous pouvez
@@ -76,10 +71,10 @@ void register_banked_particle_type() {
 
   BankedParticle p;
   int err = 0;
-  int sizes[10]{3, 3, 1, 1, 1, 1, 1, 3, 1, 1};
-  DType dtypes[10]{Double, Double, Double, Double, Double,
-                   UInt64, UInt64, Double, Double, Double};
-  MPI_Aint disps[10];
+  int sizes[13]{3, 3, 1, 1, 1, 1, 1, 1, 3, 3, 1, 1, 1};
+  DType dtypes[13]{Double, Double, Double, Double, Double, UInt64, UInt64,
+                   Bool,   Double, Double, Double, Double, Double};
+  MPI_Aint disps[13];
   MPI_Get_address(&p.r, &disps[0]);
   MPI_Get_address(&p.u, &disps[1]);
   MPI_Get_address(&p.E, &disps[2]);
@@ -87,15 +82,18 @@ void register_banked_particle_type() {
   MPI_Get_address(&p.wgt2, &disps[4]);
   MPI_Get_address(&p.parent_history_id, &disps[5]);
   MPI_Get_address(&p.parent_daughter_id, &disps[6]);
-  MPI_Get_address(&p.parents_previous_position, &disps[7]);
-  MPI_Get_address(&p.parents_previous_energy, &disps[8]);
-  MPI_Get_address(&p.Esmp_parent, &disps[9]);
-  for (int i = 9; i >= 0; --i) {
+  MPI_Get_address(&p.parents_previous_was_virtual, &disps[7]);
+  MPI_Get_address(&p.parents_previous_position, &disps[8]);
+  MPI_Get_address(&p.parents_previous_direction, &disps[9]);
+  MPI_Get_address(&p.parents_previous_previous_energy, &disps[10]);
+  MPI_Get_address(&p.parents_previous_energy, &disps[11]);
+  MPI_Get_address(&p.Esmp_parent, &disps[12]);
+  for (int i = 12; i >= 0; --i) {
     disps[i] -= disps[0];
   }
 
   DType tmp_BParticle;
-  err = MPI_Type_create_struct(10, sizes, disps, dtypes, &tmp_BParticle);
+  err = MPI_Type_create_struct(13, sizes, disps, dtypes, &tmp_BParticle);
   check_error(err, __FILE__, __LINE__);
 
   MPI_Aint lb, extnt;

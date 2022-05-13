@@ -1,13 +1,8 @@
 /*=============================================================================*
- * Copyright (C) 2021, Commissariat à l'Energie Atomique et aux Energies
+ * Copyright (C) 2021-2022, Commissariat à l'Energie Atomique et aux Energies
  * Alternatives
  *
  * Contributeur : Hunter Belanger (hunter.belanger@cea.fr)
- *
- * Ce logiciel est un programme informatique servant à faire des comparaisons
- * entre les méthodes de transport qui sont capable de traiter les milieux
- * continus avec la méthode Monte Carlo. Il résoud l'équation de Boltzmann
- * pour les particules neutres, à une vitesse et dans une dimension.
  *
  * Ce logiciel est régi par la licence CeCILL soumise au droit français et
  * respectant les principes de diffusion des logiciels libres. Vous pouvez
@@ -57,8 +52,11 @@ struct BankedParticle {
   uint64_t parent_daughter_id;
 
   // For use in performing cancellation
-  Position parents_previous_position = Position();
-  double parents_previous_energy = 0;
+  bool parents_previous_was_virtual = false;
+  Position parents_previous_position = Position();     // R1
+  Direction parents_previous_direction = Direction();  // U1
+  double parents_previous_previous_energy = 0;         // E1
+  double parents_previous_energy = 0;                  // E3
   double Esmp_parent = 0.;
 
   bool operator<(const BankedParticle &rhs) const {
@@ -95,6 +93,7 @@ class Particle {
   bool is_reflected() const { return reflected; }
   double E() const { return state.energy; }
   Position previous_r() const { return previous_position; }
+  Direction previous_u() const { return previous_direction; }
   double previous_E() const { return previous_energy; }
   uint64_t history_id() const { return history_id_; }
   uint64_t secondary_id() const { return secondary_id_; }
@@ -108,7 +107,10 @@ class Particle {
     previous_position = state.position;
     state.position = r;
   }
-  void set_direction(Direction u) { state.direction = u; }
+  void set_direction(Direction u) {
+    previous_direction = state.direction;
+    state.direction = u;
+  }
   void set_weight(double w) { state.weight = w; }
   void set_weight2(double w) { state.weight2 = w; }
   void set_energy(double E) {
@@ -195,6 +197,18 @@ class Particle {
     histories_initial_rng = initial_rng;
   }
 
+  bool previous_collision_virtual() const {
+    return this->previous_collision_virtual_;
+  }
+
+  void set_previous_collision_virtual() {
+    this->previous_collision_virtual_ = true;
+  }
+
+  void set_previous_collision_real() {
+    this->previous_collision_virtual_ = false;
+  }
+
   uint64_t number_of_rng_calls() const { return rng - histories_initial_rng; }
 
   pcg32 rng;
@@ -212,12 +226,14 @@ class Particle {
   uint64_t daughter_counter_ = 0;
 
   Position previous_position = Position();
+  Direction previous_direction = Direction();
   double previous_energy = 0;
 
   double Esmp_ = 0.;
 
   bool alive = true;
   bool reflected = false;
+  bool previous_collision_virtual_ = false;
 
   Position r_birth_ = Position();
 

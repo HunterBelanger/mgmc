@@ -1,13 +1,8 @@
 /*=============================================================================*
- * Copyright (C) 2021, Commissariat à l'Energie Atomique et aux Energies
+ * Copyright (C) 2021-2022, Commissariat à l'Energie Atomique et aux Energies
  * Alternatives
  *
  * Contributeur : Hunter Belanger (hunter.belanger@cea.fr)
- *
- * Ce logiciel est un programme informatique servant à faire des comparaisons
- * entre les méthodes de transport qui sont capable de traiter les milieux
- * continus avec la méthode Monte Carlo. Il résoud l'équation de Boltzmann
- * pour les particules neutres, à une vitesse et dans une dimension.
  *
  * Ce logiciel est régi par la licence CeCILL soumise au droit français et
  * respectant les principes de diffusion des logiciels libres. Vous pouvez
@@ -52,7 +47,8 @@ const std::string header =
     "                         Multi-Group Monte Carlo Transport Code\n\n";
 
 const std::string info =
-    " Copyright (C) 2021, Commissariat à l'énergie atomique et aux énergies "
+    " Copyright (C) 2021-2022, Commissariat à l'énergie atomique et aux "
+    "énergies "
     "alternatives (CEA)\n"
     " Released under the terms and conditions of the CeCILL-v2.1 license\n"
     " Written by Hunter Belanger\n";

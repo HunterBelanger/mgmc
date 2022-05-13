@@ -16,7 +16,7 @@
 
 MGMC is a 3D multi-group Monte Carlo transport code which solves the Boltzmann
 neutron transport equation for fixed-source, k-eigenvalue, and neutron noise
- problems. 
+problems. 
 
 All problem parameters such as geometry, materials, and simulation settings are
 controlled through a single YAML input file. Several examples of such files are
@@ -43,6 +43,11 @@ may also be specified in the input file, and are generated when the program is
 run with the `--plot` flag. Shared memory parallelism is implemented with
 OpenMP, and is turned on by default.
 
+In addition to solving standard k-eigenvalue and fixed-source problems, MGMC
+is also able to solve neutron noise problems for macroscopic cross section
+oscillations and for vibrations of flat surfaces. The basic methods to perform
+noise transport were developed by Dr Amélie Rouchon durring her PhD [3,4].
+
 [1] J. Leppänen, “On the use of delta-tracking and the collision flux estimator
 in the Serpent 2 Monte Carlo particle transport code,” Ann Nucl Energy, vol.
 105, pp. 161–167, 2017, doi:
@@ -52,6 +57,30 @@ in the Serpent 2 Monte Carlo particle transport code,” Ann Nucl Energy, vol.
 Continuously Varying Cross Sections Along Flight Paths,” Nucl Sci Eng, vol. 48,
 no. 4, pp. 403–411, 1972, doi:
 [10.13182/nse72-1](https://dx.doi.org/10.13182/nse72-1). 
+
+[3] A. Rouchon, “Analyse et développement d’outils numériques déterministes et
+stochastiques résolvant les équations du bruit neutronique et applications aux
+réacteurs thermiques et rapides,” 2016.
+
+[4] A. Rouchon, A. Zoia, and R. Sanchez, “A new Monte Carlo method for neutron
+noise calculations in the frequency domain,” Ann Nucl Energy, vol. 102,
+pp. 465–475, 2017, doi: 10.1016/j.anucene.2016.11.035. 
+
+## Papers Using MGMC
+
+H. Belanger, D. Mancusi, and A. Zoia, “Variance Reduction Techniques for Monte
+Carlo Neutron Noise Simulations,” May 2022, PHYSOR 2022.
+
+H. Belanger, C. Larmier, D. Mancusi, and A. Zoia, “Optimization of Particle
+Tracking Methods for Stochastic Media,” May 2022, PHYSOR 2022.
+
+H. Belanger, D. Mancusi, and A. Zoia, “Exact weight cancellation in Monte Carlo
+eigenvalue transport problems,” Phys. Rev. E, vol. 104, no. 1, p. 015306, 2021,
+doi: 10.1103/physreve.104.015306. 
+
+H. Belanger, D. Mancusi, and A. Zoia, “Solving Eigenvalue Transport Problems
+with Negative Weights and Regional Cancellation,” Oct. 2021, M&C 2021,
+doi: 10.13182/m&c21-33615. 
 
 ## Install
 To build MGMC, a linux system with a C++17 compliant compiler is required

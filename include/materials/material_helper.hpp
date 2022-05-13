@@ -1,13 +1,8 @@
 /*=============================================================================*
- * Copyright (C) 2021, Commissariat à l'Energie Atomique et aux Energies
+ * Copyright (C) 2021-2022, Commissariat à l'Energie Atomique et aux Energies
  * Alternatives
  *
  * Contributeur : Hunter Belanger (hunter.belanger@cea.fr)
- *
- * Ce logiciel est un programme informatique servant à faire des comparaisons
- * entre les méthodes de transport qui sont capable de traiter les milieux
- * continus avec la méthode Monte Carlo. Il résoud l'équation de Boltzmann
- * pour les particules neutres, à une vitesse et dans une dimension.
  *
  * Ce logiciel est régi par la licence CeCILL soumise au droit français et
  * respectant les principes de diffusion des logiciels libres. Vous pouvez
@@ -226,12 +221,10 @@ class MaterialHelper {
 
   // Function to get the speed of a particle in cm/s
   double speed(double E, std::size_t i) {
-    if (settings::energy_mode == settings::EnergyMode::MG) {
-      return settings::mg_speeds[i];
-    } else {
-      double m = N_MASS_EV / (C_CM_S * C_CM_S);  // Mass in [eV * s^2 / cm^2]
-      return std::sqrt(2. * E / m);              // Speed in [cm / s]
-    }
+    // If we are in CE, it doesn't matter which nuclide we use
+    // to get the speed. If we are in MG, then there should
+    // only be 1 nuclide, so we always use component 0.
+    return mat->composition()[0].nuclide->speed(E, i);
   }
 };
 

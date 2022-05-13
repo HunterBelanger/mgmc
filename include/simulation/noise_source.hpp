@@ -1,13 +1,8 @@
 /*=============================================================================*
- * Copyright (C) 2021, Commissariat à l'Energie Atomique et aux Energies
+ * Copyright (C) 2021-2022, Commissariat à l'Energie Atomique et aux Energies
  * Alternatives
  *
  * Contributeur : Hunter Belanger (hunter.belanger@cea.fr)
- *
- * Ce logiciel est un programme informatique servant à faire des comparaisons
- * entre les méthodes de transport qui sont capable de traiter les milieux
- * continus avec la méthode Monte Carlo. Il résoud l'équation de Boltzmann
- * pour les particules neutres, à une vitesse et dans une dimension.
  *
  * Ce logiciel est régi par la licence CeCILL soumise au droit français et
  * respectant les principes de diffusion des logiciels libres. Vous pouvez
@@ -42,38 +37,21 @@
 #include <yaml-cpp/yaml.h>
 
 #include <complex>
-#include <memory>
-#include <utils/direction.hpp>
 #include <utils/position.hpp>
 
 // Pure virtual interface to allow for the sampling of neutron noise particles.
 class NoiseSource {
  public:
+  NoiseSource() = default;
   virtual ~NoiseSource() = default;
 
-  virtual bool is_inside(const Position &r, const Direction &u) const = 0;
-  virtual std::complex<double> dEt(const Position &r, const Direction &u,
-                                   double E, double w) const = 0;
-  virtual std::complex<double> dEf(const Position &r, const Direction &u,
-                                   double E, double w) const = 0;
-  virtual std::complex<double> dEelastic(const Position &r, const Direction &u,
-                                         double E, double w) const = 0;
-  virtual std::complex<double> dEmt(uint32_t mt, const Position &r,
-                                    const Direction &u, double E,
-                                    double w) const = 0;
+  virtual bool is_inside(const Position &r) const = 0;
 
-  virtual std::complex<double> dEt_Et(const Position &r, const Direction &u,
-                                      double E, double w) const = 0;
-  virtual std::complex<double> dEf_Ef(const Position &r, const Direction &u,
-                                      double E, double w) const = 0;
-  virtual std::complex<double> dEelastic_Eelastic(const Position &r,
-                                                  const Direction &u, double E,
-                                                  double w) const = 0;
-  virtual std::complex<double> dEmt_Emt(uint32_t mt, const Position &r,
-                                        const Direction &u, double E,
-                                        double w) const = 0;
+  virtual std::complex<double> dEt(const Position &r, double E,
+                                   double w) const = 0;
+
+  virtual std::complex<double> dEt_Et(const Position &r, double E,
+                                      double w) const = 0;
 };
-
-std::shared_ptr<NoiseSource> make_noise_source(YAML::Node snode);
 
 #endif

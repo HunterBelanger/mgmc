@@ -1,13 +1,8 @@
 /*=============================================================================*
- * Copyright (C) 2021, Commissariat à l'Energie Atomique et aux Energies
+ * Copyright (C) 2021-2022, Commissariat à l'Energie Atomique et aux Energies
  * Alternatives
  *
  * Contributeur : Hunter Belanger (hunter.belanger@cea.fr)
- *
- * Ce logiciel est un programme informatique servant à faire des comparaisons
- * entre les méthodes de transport qui sont capable de traiter les milieux
- * continus avec la méthode Monte Carlo. Il résoud l'équation de Boltzmann
- * pour les particules neutres, à une vitesse et dans une dimension.
  *
  * Ce logiciel est régi par la licence CeCILL soumise au droit français et
  * respectant les principes de diffusion des logiciels libres. Vous pouvez
@@ -39,10 +34,12 @@
 #ifndef SLICE_PLOT_H
 #define SLICE_PLOT_H
 
+#include <geometry/cell.hpp>
 #include <map>
 #include <mutex>
 #include <plotting/pixel.hpp>
 #include <string>
+#include <utils/direction.hpp>
 #include <utils/position.hpp>
 #include <utils/rng.hpp>
 #include <vector>
@@ -78,6 +75,9 @@ class SlicePlot {
   std::mutex create_color_mutex;
 
   Position get_pixel_position(uint64_t i, uint64_t j) const;
+  Position get_start_position(uint64_t i) const;
+  Direction get_tracking_direction() const;
+  Pixel get_color(const ::Cell* cell);
   Pixel get_random_color();
 
 };  // SlicePlot

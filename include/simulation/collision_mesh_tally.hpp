@@ -1,13 +1,8 @@
 /*=============================================================================*
- * Copyright (C) 2021, Commissariat à l'Energie Atomique et aux Energies
+ * Copyright (C) 2021-2022, Commissariat à l'Energie Atomique et aux Energies
  * Alternatives
  *
  * Contributeur : Hunter Belanger (hunter.belanger@cea.fr)
- *
- * Ce logiciel est un programme informatique servant à faire des comparaisons
- * entre les méthodes de transport qui sont capable de traiter les milieux
- * continus avec la méthode Monte Carlo. Il résoud l'équation de Boltzmann
- * pour les particules neutres, à une vitesse et dans une dimension.
  *
  * Ce logiciel est régi par la licence CeCILL soumise au droit français et
  * respectant les principes de diffusion des logiciels libres. Vous pouvez
@@ -39,19 +34,48 @@
 #ifndef COLLISION_MESH_TALLY_H
 #define COLLISION_MESH_TALLY_H
 
+#include <yaml-cpp/yaml.h>
+
 #include <simulation/mesh_tally.hpp>
 
 class CollisionMeshTally : public MeshTally {
  public:
+  enum class Quantity {
+    Flux,
+    Total,
+    Elastic,
+    Absorption,
+    Fission,
+    MT,
+    RealFlux,
+    ImgFlux,
+    RealTotal,
+    ImgTotal,
+    RealElastic,
+    ImgElastic,
+    RealAbsorption,
+    ImgAbsorption,
+    RealFission,
+    ImgFission,
+    RealMT,
+    ImgMT
+  };
+
   CollisionMeshTally(Position low, Position hi, uint64_t nx, uint64_t ny,
                      uint64_t nz, const std::vector<double> &ebounds,
-                     TallyQuantity q, std::string fname, uint32_t mt = 0)
-      : MeshTally(low, hi, nx, ny, nz, ebounds, q, fname, mt) {}
+                     Quantity q, std::string fname, uint32_t mt = 0)
+      : MeshTally(low, hi, nx, ny, nz, ebounds, fname), quantity(q), mt(mt) {}
 
-  void score_collision(const Particle &p, MaterialHelper &mat) override final;
+  void score_collision(const Particle &p, MaterialHelper &mat);
 
-  void score_flight(const Particle & /*p*/, double /*d*/,
-                    MaterialHelper & /*mat*/) override final {}
+ private:
+  Quantity quantity;
+  uint32_t mt;
+
+  std::string quantity_str() const override final;
 };
+
+std::shared_ptr<CollisionMeshTally> make_collision_mesh_tally(
+    const YAML::Node &node);
 
 #endif

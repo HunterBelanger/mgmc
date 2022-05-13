@@ -1,19 +1,24 @@
-set(MGMC_SOURCE_FILES ${MGMC_SOURCE_FILES}
+set(CHENILLE_SOURCE_FILES ${CHENILLE_SOURCE_FILES}
   src/material.cpp
   src/mg_nuclide.cpp
+  src/mg_angle_distribution.cpp
+  src/legendre_distribution.cpp
+  src/nuclide.cpp
   src/surface_tracker.cpp
   src/delta_tracker.cpp
   src/carter_tracker.cpp
   src/transporter.cpp
   src/approximate_mesh_cancelator.cpp
-  src/exact_regional_mg_cancelator.cpp
+  src/basic_exact_mg_cancelator.cpp
+  src/exact_mg_cancelator.cpp
   src/cell_search_mesh.cpp
   src/cancelator.cpp
   src/noise.cpp
   src/power_iterator.cpp
   src/fixed_source.cpp
-  src/noise_source.cpp
-  src/oscillation_noise_source.cpp
+  src/noise_maker.cpp
+  src/square_oscillation_noise_source.cpp
+  src/flat_vibration_noise_source.cpp
   src/source.cpp
   src/particle.cpp
   src/spatial_distribution.cpp
@@ -27,6 +32,7 @@ set(MGMC_SOURCE_FILES ${MGMC_SOURCE_FILES}
   src/mono_energetic.cpp
   src/tallies.cpp
   src/mesh_tally.cpp
+  src/source_mesh_tally.cpp
   src/collision_mesh_tally.cpp
   src/track_length_mesh_tally.cpp
   src/parser.cpp

@@ -1,13 +1,8 @@
 /*=============================================================================*
- * Copyright (C) 2021, Commissariat à l'Energie Atomique et aux Energies
+ * Copyright (C) 2021-2022, Commissariat à l'Energie Atomique et aux Energies
  * Alternatives
  *
  * Contributeur : Hunter Belanger (hunter.belanger@cea.fr)
- *
- * Ce logiciel est un programme informatique servant à faire des comparaisons
- * entre les méthodes de transport qui sont capable de traiter les milieux
- * continus avec la méthode Monte Carlo. Il résoud l'équation de Boltzmann
- * pour les particules neutres, à une vitesse et dans une dimension.
  *
  * Ce logiciel est régi par la licence CeCILL soumise au droit français et
  * respectant les principes de diffusion des logiciels libres. Vous pouvez
@@ -40,7 +35,7 @@
 #include <geometry/geometry.hpp>
 #include <materials/material_helper.hpp>
 #include <memory>
-#include <simulation/exact_regional_mg_cancelator.hpp>
+#include <simulation/basic_exact_mg_cancelator.hpp>
 #include <sobol/sobol.hpp>
 #include <sstream>
 #include <string>
@@ -49,12 +44,12 @@
 #include <utils/output.hpp>
 #include <vector>
 
-std::array<uint32_t, 3> ExactRegionalMGCancelator::KeyHash::shape;
+std::array<uint32_t, 3> BasicExactMGCancelator::KeyHash::shape;
 
-ExactRegionalMGCancelator::ExactRegionalMGCancelator(Position low, Position hi,
-                                                     uint32_t Nx, uint32_t Ny,
-                                                     uint32_t Nz, BetaMode beta,
-                                                     bool sobol, uint32_t nsmp)
+BasicExactMGCancelator::BasicExactMGCancelator(Position low, Position hi,
+                                               uint32_t Nx, uint32_t Ny,
+                                               uint32_t Nz, BetaMode beta,
+                                               bool sobol, uint32_t nsmp)
     : r_low(low),
       r_hi(hi),
       hash_fn(),
@@ -69,7 +64,7 @@ ExactRegionalMGCancelator::ExactRegionalMGCancelator(Position low, Position hi,
   if (r_low.x() >= r_hi.x() || r_low.y() >= r_hi.y() || r_low.z() >= r_hi.z()) {
     std::string mssg =
         "Low position is not lower than hi position in "
-        "ExactRegionalMGCancelator.";
+        "BasicExactMGCancelator.";
     fatal_error(mssg, __FILE__, __LINE__);
   }
 
@@ -78,7 +73,7 @@ ExactRegionalMGCancelator::ExactRegionalMGCancelator(Position low, Position hi,
   hash_fn.shape[2] = Nz;
 }
 
-bool ExactRegionalMGCancelator::add_particle(BankedParticle &p) {
+bool BasicExactMGCancelator::add_particle(BankedParticle &p) {
   // Get bin indicies for spacial coordinates
   int i = std::floor((p.r.x() - r_low.x()) / dx);
   int j = std::floor((p.r.y() - r_low.y()) / dy);
@@ -120,7 +115,7 @@ bool ExactRegionalMGCancelator::add_particle(BankedParticle &p) {
   return true;
 }
 
-std::optional<Position> ExactRegionalMGCancelator::sample_position(
+std::optional<Position> BasicExactMGCancelator::sample_position(
     const Key &key, Material *mat, pcg32 &rng) const {
   // Get bin positions
   double Xl = r_low.x() + key.i * dx;
@@ -152,7 +147,7 @@ std::optional<Position> ExactRegionalMGCancelator::sample_position(
   return std::make_optional(r_smp);
 }
 
-std::optional<Position> ExactRegionalMGCancelator::sample_position_sobol(
+std::optional<Position> BasicExactMGCancelator::sample_position_sobol(
     const Key &key, Material *mat, unsigned long long &i) const {
   // Get bin positions
   double Xl = r_low.x() + key.i * dx;
@@ -185,7 +180,7 @@ std::optional<Position> ExactRegionalMGCancelator::sample_position_sobol(
   return std::make_optional(r_smp);
 }
 
-Material *ExactRegionalMGCancelator::get_material(const Position &r) const {
+Material *BasicExactMGCancelator::get_material(const Position &r) const {
   Cell *cell = geometry::get_cell_naked_ptr(r, {1., 0., 0.});
 
   if (!cell) {
@@ -197,29 +192,44 @@ Material *ExactRegionalMGCancelator::get_material(const Position &r) const {
   if (!mat) {
     std::stringstream mssg;
     mssg << "No material found at " << r
-         << " in ExactRegionalMGCancelator::get_material.";
+         << " in BasicExactMGCancelator::get_material.";
     fatal_error(mssg.str(), __FILE__, __LINE__);
   }
 
   return mat;
 }
 
-double ExactRegionalMGCancelator::get_f(const Position &r,
-                                        const Position &r_parent, double Esmp,
-                                        double Ef) const {
+double BasicExactMGCancelator::get_f(const Position &r,
+                                     const Position &r_parent,
+                                     double Esmp) const {
   double d = std::sqrt(std::pow(r.x() - r_parent.x(), 2.) +
                        std::pow(r.y() - r_parent.y(), 2.) +
                        std::pow(r.z() - r_parent.z(), 2.));
 
-  // Can now calculate point fission reaction rate
-  double f = (1. / (4. * PI * d * d)) * std::exp(-Esmp * d) * Ef;
+  // Can now calculate point fission reaction rate.
+  // double f = (1. / (4. * PI * d * d)) * std::exp(-Esmp * d) * Ef;
+
+  // In our [1], we used this commented version of f, with Ef and a
+  // factor of 1/(4PI), but we have since learned that this is not necessary.
+  // In simplified MG physics, where scattering is isotropic, and the fission
+  // emisssion direction and energy are independent, and the fission energy is
+  // independent of the incident energy, then we don't actually need to perfom
+  // cancellation on the fission emission density, but only on the collision
+  // density. As such, we can just use this modified version of f which is only
+  // a function of the flight distance d, and the sampling xs Esmp. If the
+  // fission specturm is a chi matrix however, or scattering is anisotropic,
+  // this will not work !
+  // We will leave this for now with the compiler warning due to the unused Ef,
+  // as this must be changed to accomodate the new MG physics which allows for
+  // anisotropic scattering, and chi matrix.
+  double f = (1. / (d * d)) * std::exp(-Esmp * d);
 
   return f;
 }
 
-double ExactRegionalMGCancelator::get_min_f(const Key &key,
-                                            const Position &r_parent,
-                                            double Esmp, double Ef) const {
+double BasicExactMGCancelator::get_min_f(const Key &key,
+                                         const Position &r_parent,
+                                         double Esmp) const {
   // Get bin positions
   double Xl = r_low.x() + key.i * dx;
   double Xh = Xl + dx;
@@ -238,14 +248,14 @@ double ExactRegionalMGCancelator::get_min_f(const Key &key,
   Position c7(Xl, Yl, Zh);
   Position c8(Xl, Yl, Zl);
 
-  double f1 = get_f(c1, r_parent, Esmp, Ef);
-  double f2 = get_f(c2, r_parent, Esmp, Ef);
-  double f3 = get_f(c3, r_parent, Esmp, Ef);
-  double f4 = get_f(c4, r_parent, Esmp, Ef);
-  double f5 = get_f(c5, r_parent, Esmp, Ef);
-  double f6 = get_f(c6, r_parent, Esmp, Ef);
-  double f7 = get_f(c7, r_parent, Esmp, Ef);
-  double f8 = get_f(c8, r_parent, Esmp, Ef);
+  double f1 = get_f(c1, r_parent, Esmp);
+  double f2 = get_f(c2, r_parent, Esmp);
+  double f3 = get_f(c3, r_parent, Esmp);
+  double f4 = get_f(c4, r_parent, Esmp);
+  double f5 = get_f(c5, r_parent, Esmp);
+  double f6 = get_f(c6, r_parent, Esmp);
+  double f7 = get_f(c7, r_parent, Esmp);
+  double f8 = get_f(c8, r_parent, Esmp);
 
   double beta = std::min(std::min(std::min(f1, f2), std::min(f3, f4)),
                          std::min(std::min(f5, f6), std::min(f7, f8)));
@@ -253,8 +263,8 @@ double ExactRegionalMGCancelator::get_min_f(const Key &key,
   return beta;
 }
 
-void ExactRegionalMGCancelator::get_averages(const Key &key, Material *mat,
-                                             CancelBin &bin, pcg32 &rng) {
+void BasicExactMGCancelator::get_averages(const Key &key, Material *mat,
+                                          CancelBin &bin, pcg32 &rng) {
   // Get copy of shared ptr for the material, used by the MaterialHelper for
   // getting the macroscopic fission xs.
   std::shared_ptr<Material> mat_ptr = mat->shared_from_this();
@@ -283,13 +293,12 @@ void ExactRegionalMGCancelator::get_averages(const Key &key, Material *mat,
     double E = bin.particles[i]->parents_previous_energy;
     double Esmp = bin.particles[i]->Esmp_parent;
     MaterialHelper mat_helper(mat_ptr, E);
-    double Ef = mat_helper.Ef(E);
 
     // Compute the average value for f and 1/f
     double sum_f = 0.;
     double sum_f_inv = 0.;
     for (const auto &r_smp : r_smps) {
-      double f = get_f(r_smp, r_parent, Esmp, Ef);
+      double f = get_f(r_smp, r_parent, Esmp);
       sum_f += f;
       sum_f_inv += 1. / f;
     }
@@ -319,9 +328,8 @@ void ExactRegionalMGCancelator::get_averages(const Key &key, Material *mat,
   }
 }
 
-void ExactRegionalMGCancelator::get_averages_sobol(const Key &key,
-                                                   Material *mat,
-                                                   CancelBin &bin) {
+void BasicExactMGCancelator::get_averages_sobol(const Key &key, Material *mat,
+                                                CancelBin &bin) {
   // Get copy of shared ptr for the material, used by the MaterialHelper for
   // getting the macroscopic fission xs.
   std::shared_ptr<Material> mat_ptr = mat->shared_from_this();
@@ -352,13 +360,12 @@ void ExactRegionalMGCancelator::get_averages_sobol(const Key &key,
     double E = bin.particles[i]->parents_previous_energy;
     double Esmp = bin.particles[i]->Esmp_parent;
     MaterialHelper mat_helper(mat_ptr, E);
-    double Ef = mat_helper.Ef(E);
 
     // Compute the average value for f and 1/f
     double sum_f = 0.;
     double sum_f_inv = 0.;
     for (const auto &r_smp : r_smps) {
-      double f = get_f(r_smp, r_parent, Esmp, Ef);
+      double f = get_f(r_smp, r_parent, Esmp);
       sum_f += f;
       sum_f_inv += 1. / f;
     }
@@ -388,11 +395,10 @@ void ExactRegionalMGCancelator::get_averages_sobol(const Key &key,
   }
 }
 
-double ExactRegionalMGCancelator::get_beta(const Key &key, const CancelBin &bin,
-                                           std::size_t i,
-                                           const Position &r_parent,
-                                           double Esmp, double Ef, double wgt,
-                                           bool first_wgt) const {
+double BasicExactMGCancelator::get_beta(const Key &key, const CancelBin &bin,
+                                        std::size_t i, const Position &r_parent,
+                                        double Esmp, double wgt,
+                                        bool first_wgt) const {
   if (bin.can_cancel == false) return 0.;
 
   switch (beta_mode) {
@@ -401,7 +407,7 @@ double ExactRegionalMGCancelator::get_beta(const Key &key, const CancelBin &bin,
       break;
 
     case BetaMode::Minimum:
-      return get_min_f(key, r_parent, Esmp, Ef);
+      return get_min_f(key, r_parent, Esmp);
       break;
 
     case BetaMode::OptAverageF: {
@@ -426,8 +432,8 @@ double ExactRegionalMGCancelator::get_beta(const Key &key, const CancelBin &bin,
   return 0.;
 }
 
-void ExactRegionalMGCancelator::cancel_bin(const Key &key, Material *mat,
-                                           CancelBin &bin, bool first_wgt) {
+void BasicExactMGCancelator::cancel_bin(const Key &key, Material *mat,
+                                        CancelBin &bin, bool first_wgt) {
   std::shared_ptr<Material> bin_material = mat->shared_from_this();
 
   // Go through all particles in bin
@@ -436,24 +442,38 @@ void ExactRegionalMGCancelator::cancel_bin(const Key &key, Material *mat,
     double E = bin.particles[i]->parents_previous_energy;
     double Esmp = bin.particles[i]->Esmp_parent;
     MaterialHelper mat(bin_material, E);
-    double Ef = mat.Ef(E);
 
     double wgt = first_wgt ? bin.particles[i]->wgt : bin.particles[i]->wgt2;
 
-    double B = get_beta(key, bin, i, r_parent, Esmp, Ef, wgt, first_wgt);
-    double f = get_f(bin.particles[i]->r, r_parent, Esmp, Ef);
+    // If the weight component is zero, we can't cancel that part.
+    // This is required as one component can be zero in noise simulations.
+    if (wgt == 0.) return;
+
+    const double B = get_beta(key, bin, i, r_parent, Esmp, wgt, first_wgt);
+    const double f = get_f(bin.particles[i]->r, r_parent, Esmp);
+
+    const double P_p = (f - B) / f;
+    const double P_u = B / f;
+
+    // If either P_p or P_u is Inf or NaN, we can't do cancellation.
+    // This usually happens when the weight in question is zero, which
+    // occurs durring noise transport. This should be checked for just
+    // above, but I am gonna leave this here anyway for safety.
+    if (std::isinf(P_u) || std::isinf(P_p) || std::isnan(P_u) ||
+        std::isnan(P_p))
+      return;
 
     if (first_wgt) {
-      bin.uniform_wgt += bin.particles[i]->wgt * (B / f);
-      bin.particles[i]->wgt *= (f - B) / f;
+      bin.uniform_wgt += bin.particles[i]->wgt * P_u;
+      bin.particles[i]->wgt *= P_p;
     } else {
-      bin.uniform_wgt2 += bin.particles[i]->wgt2 * (B / f);
-      bin.particles[i]->wgt2 *= (f - B) / f;
+      bin.uniform_wgt2 += bin.particles[i]->wgt2 * P_u;
+      bin.particles[i]->wgt2 *= P_p;
     }
   }
 }
 
-void ExactRegionalMGCancelator::perform_cancellation(pcg32 &rng) {
+void BasicExactMGCancelator::perform_cancellation(pcg32 &rng) {
   if (beta_mode == BetaMode::Zero) return;
 
   // If we have no bins (meaning no particles), then
@@ -550,7 +570,7 @@ void ExactRegionalMGCancelator::perform_cancellation(pcg32 &rng) {
   }
 }
 
-std::vector<BankedParticle> ExactRegionalMGCancelator::get_new_particles(
+std::vector<BankedParticle> BasicExactMGCancelator::get_new_particles(
     pcg32 &rng) {
   if (beta_mode == BetaMode::Zero) return {};
 
@@ -570,46 +590,50 @@ std::vector<BankedParticle> ExactRegionalMGCancelator::get_new_particles(
       // Determine number of new particles to add
       uint32_t N = std::ceil(
           std::max(std::abs(bin.uniform_wgt), std::abs(bin.uniform_wgt2)));
-      double w = bin.uniform_wgt / N;
-      double w2 = bin.uniform_wgt2 / N;
 
-      // Get the single nuclide from the material
-      std::shared_ptr<Nuclide> nuclide = mat_ptr->composition().front().nuclide;
+      if (N > 0) {
+        double w = bin.uniform_wgt / N;
+        double w2 = bin.uniform_wgt2 / N;
 
-      for (size_t i = 0; i < N; i++) {
-        // Sample position
-        std::optional<Position> r_smp = sample_position(key, mat, rng);
+        // Get the single nuclide from the material
+        std::shared_ptr<Nuclide> nuclide =
+            mat_ptr->composition().front().nuclide;
 
-        if (!r_smp) {
-          // For some reason we couldn't sample a position, probably because
-          // there is so little of the material in the region. If this
-          // is the case, we shouldn't have gotten this far, but hey, here
-          // were are ! We are just gonna call this a fatal error for now,
-          // and see if it ever pops up.
-          std::stringstream out;
-          out << "Couldn't sample position for uniform particle.";
-          fatal_error(out.str(), __FILE__, __LINE__);
+        for (size_t i = 0; i < N; i++) {
+          // Sample position
+          std::optional<Position> r_smp = sample_position(key, mat, rng);
+
+          if (!r_smp) {
+            // For some reason we couldn't sample a position, probably because
+            // there is so little of the material in the region. If this
+            // is the case, we shouldn't have gotten this far, but hey, here
+            // were are ! We are just gonna call this a fatal error for now,
+            // and see if it ever pops up.
+            std::stringstream out;
+            out << "Couldn't sample position for uniform particle.";
+            fatal_error(out.str(), __FILE__, __LINE__);
+          }
+
+          // Fake particle for calling Nuclide::make_fission_neutron
+          Particle fake_particle(r_smp.value(), {0., 0., 1.}, 0., 1., 0., 0);
+          // Must set particle RNG to be our passed rng so that is will continue
+          // along the same stream we are using for cancellation inside the
+          // make_fission_neutron method
+          fake_particle.rng = rng;
+
+          // Sample particle energy
+          BankedParticle uniform_particle =
+              nuclide->make_fission_neutron(fake_particle, 0, 0, 0);
+          uniform_particle.wgt = w;
+          uniform_particle.wgt2 = w2;
+
+          // We must now get the rng back from the particle, as the copy inside
+          // the particle was changed when sampling the uniform particle.
+          rng = fake_particle.rng;
+
+          // Save sampled particle
+          uniform_particles.push_back(uniform_particle);
         }
-
-        // Fake particle for calling Nuclide::make_fission_neutron
-        Particle fake_particle(r_smp.value(), {0., 0., 1.}, 0., 1., 0., 0);
-        // Must set particle RNG to be our passed rng so that is will continue
-        // along the same stream we are using for cancellation inside the
-        // make_fission_neutron method
-        fake_particle.rng = rng;
-
-        // Sample particle energy
-        BankedParticle uniform_particle =
-            nuclide->make_fission_neutron(fake_particle, 0, 0, 0);
-        uniform_particle.wgt = w;
-        uniform_particle.wgt2 = w2;
-
-        // We must now get the rng back from the particle, as the copy inside
-        // the particle was changed when sampling the uniform particle.
-        rng = fake_particle.rng;
-
-        // Save sampled particle
-        uniform_particles.push_back(uniform_particle);
       }
 
       bin.uniform_wgt = 0.;
@@ -620,13 +644,13 @@ std::vector<BankedParticle> ExactRegionalMGCancelator::get_new_particles(
   return uniform_particles;
 }
 
-void ExactRegionalMGCancelator::clear() { bins.clear(); }
+void BasicExactMGCancelator::clear() { bins.clear(); }
 
-std::shared_ptr<ExactRegionalMGCancelator> make_exact_regional_mg_cancelator(
+std::shared_ptr<BasicExactMGCancelator> make_basic_exact_mg_cancelator(
     const YAML::Node &node) {
   // Get low
   if (!node["low"] || !node["low"].IsSequence() || !(node["low"].size() == 3)) {
-    std::string mssg = "No valid low entry for exact regional MG cancelator.";
+    std::string mssg = "No valid low entry for basic exact MG cancelator.";
     fatal_error(mssg, __FILE__, __LINE__);
   }
 
@@ -638,7 +662,7 @@ std::shared_ptr<ExactRegionalMGCancelator> make_exact_regional_mg_cancelator(
 
   // Get hi
   if (!node["hi"] || !node["hi"].IsSequence() || !(node["hi"].size() == 3)) {
-    std::string mssg = "No valid hi entry for exact regional MG cancelator.";
+    std::string mssg = "No valid hi entry for basic exact MG cancelator.";
     fatal_error(mssg, __FILE__, __LINE__);
   }
 
@@ -651,7 +675,7 @@ std::shared_ptr<ExactRegionalMGCancelator> make_exact_regional_mg_cancelator(
   // Get shape
   if (!node["shape"] || !node["shape"].IsSequence() ||
       !(node["shape"].size() == 3)) {
-    std::string mssg = "No valid shape entry for exact regional MG cancelator.";
+    std::string mssg = "No valid shape entry for basic exact MG cancelator.";
     fatal_error(mssg, __FILE__, __LINE__);
   }
 
@@ -660,25 +684,25 @@ std::shared_ptr<ExactRegionalMGCancelator> make_exact_regional_mg_cancelator(
   uint32_t Nz = node["shape"][2].as<uint32_t>();
 
   if (!node["beta"] || !node["beta"].IsScalar()) {
-    std::string mssg = "No valid beta entry for exact regional MG cancelator.";
+    std::string mssg = "No valid beta entry for basic exact MG cancelator.";
     fatal_error(mssg, __FILE__, __LINE__);
   }
   std::string beta_str = node["beta"].as<std::string>();
 
-  ExactRegionalMGCancelator::BetaMode beta =
-      ExactRegionalMGCancelator::BetaMode::Zero;
+  BasicExactMGCancelator::BetaMode beta =
+      BasicExactMGCancelator::BetaMode::Zero;
 
   if (beta_str == "zero") {
-    beta = ExactRegionalMGCancelator::BetaMode::Zero;
+    beta = BasicExactMGCancelator::BetaMode::Zero;
   } else if (beta_str == "minimum") {
-    beta = ExactRegionalMGCancelator::BetaMode::Minimum;
+    beta = BasicExactMGCancelator::BetaMode::Minimum;
   } else if (beta_str == "average-f") {
-    beta = ExactRegionalMGCancelator::BetaMode::OptAverageF;
+    beta = BasicExactMGCancelator::BetaMode::OptAverageF;
   } else if (beta_str == "average-g") {
-    beta = ExactRegionalMGCancelator::BetaMode::OptAverageGain;
+    beta = BasicExactMGCancelator::BetaMode::OptAverageGain;
   } else {
-    std::string mssg = "Unkown beta entry \"" + beta_str +
-                       "\" for exact regional MG cancelator.";
+    std::string mssg =
+        "Unkown beta entry \"" + beta_str + "\" for basic exact MG cancelator.";
     fatal_error(mssg, __FILE__, __LINE__);
   }
 
@@ -698,16 +722,28 @@ std::shared_ptr<ExactRegionalMGCancelator> make_exact_regional_mg_cancelator(
     fatal_error(mssg, __FILE__, __LINE__);
   }
 
+  if (n_samples == 0) {
+    std::string mssg = "n-samples must be greater than zero.";
+    fatal_error(mssg, __FILE__, __LINE__);
+  }
+
   std::stringstream otpt;
-  otpt << " Using ExactRegionalMGCancelator with BetaMode " << beta_str;
+  otpt << " Using BasicExactMGCancelator with BetaMode " << beta_str;
   if (use_sobol) otpt << " with sobol";
-  if (beta != ExactRegionalMGCancelator::BetaMode::Zero &&
-      beta != ExactRegionalMGCancelator::BetaMode::Minimum) {
+  if (beta != BasicExactMGCancelator::BetaMode::Zero &&
+      beta != BasicExactMGCancelator::BetaMode::Minimum) {
     otpt << " using " << n_samples << " points";
   }
   otpt << ".\n";
   Output::instance()->write(otpt.str());
 
-  return std::make_shared<ExactRegionalMGCancelator>(
-      r_low, r_hi, Nx, Ny, Nz, beta, use_sobol, n_samples);
+  return std::make_shared<BasicExactMGCancelator>(r_low, r_hi, Nx, Ny, Nz, beta,
+                                                  use_sobol, n_samples);
 }
+
+//==============================================================================
+// References
+//
+// [1] H. Belanger, D. Mancusi, and A. Zoia, “Exact weight cancellation in Monte
+//     Carlo eigenvalue transport problems,” Phys. Rev. E, vol. 104, no. 1,
+//     p. 015306, 2021, doi: 10.1103/physreve.104.015306.

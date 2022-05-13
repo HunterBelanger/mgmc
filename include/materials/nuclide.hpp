@@ -1,13 +1,8 @@
 /*=============================================================================*
- * Copyright (C) 2021, Commissariat à l'Energie Atomique et aux Energies
+ * Copyright (C) 2021-2022, Commissariat à l'Energie Atomique et aux Energies
  * Alternatives
  *
  * Contributeur : Hunter Belanger (hunter.belanger@cea.fr)
- *
- * Ce logiciel est un programme informatique servant à faire des comparaisons
- * entre les méthodes de transport qui sont capable de traiter les milieux
- * continus avec la méthode Monte Carlo. Il résoud l'équation de Boltzmann
- * pour les particules neutres, à une vitesse et dans une dimension.
  *
  * Ce logiciel est régi par la licence CeCILL soumise au droit français et
  * respectant les principes de diffusion des logiciels libres. Vous pouvez
@@ -39,9 +34,13 @@
 #ifndef NUCLIDE_H
 #define NUCLIDE_H
 
+#include <map>
 #include <optional>
 #include <simulation/noise_source.hpp>
 #include <simulation/particle.hpp>
+
+class Nuclide;
+extern std::map<uint32_t, std::shared_ptr<Nuclide>> nuclides;
 
 struct MicroXSs {
   double total = 0.;
@@ -68,6 +67,7 @@ struct ScatterInfo {
 // the energy mode being used.
 class Nuclide {
  public:
+  Nuclide() : id_(id_counter++) {}
   virtual ~Nuclide() = default;
 
   virtual bool fissile() const = 0;
@@ -88,20 +88,26 @@ class Nuclide {
   virtual ScatterInfo sample_prompt_fission(double Ein, const Direction &u,
                                             std::size_t i,
                                             pcg32 &rng) const = 0;
+  // Samples an energy and direction from the delayed spectrum of delayed family
+  // g.
   virtual ScatterInfo sample_delayed_fission(double Ein, const Direction &u,
                                              std::size_t g,
                                              pcg32 &rng) const = 0;
 
   virtual double max_energy() const = 0;
   virtual double min_energy() const = 0;
+  virtual double speed(double E, std::size_t i) const = 0;
 
   virtual BankedParticle make_fission_neutron(
       Particle &p, std::size_t energy_index, double P_del,
       std::optional<double> w_noise = std::nullopt) const = 0;
-  virtual void scatter(Particle &p, std::size_t energy_index,
-                       std::optional<double> w_noise = std::nullopt,
-                       std::vector<std::shared_ptr<NoiseSource>>
-                           *noise_sources = nullptr) const = 0;
+  virtual void scatter(Particle &p, std::size_t energy_index) const = 0;
+
+  uint32_t id() const { return id_; }
+
+ private:
+  static uint32_t id_counter;
+  uint32_t id_;
 };
 
 #endif

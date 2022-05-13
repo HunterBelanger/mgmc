@@ -1,13 +1,8 @@
 /*=============================================================================*
- * Copyright (C) 2021, Commissariat à l'Energie Atomique et aux Energies
+ * Copyright (C) 2021-2022, Commissariat à l'Energie Atomique et aux Energies
  * Alternatives
  *
  * Contributeur : Hunter Belanger (hunter.belanger@cea.fr)
- *
- * Ce logiciel est un programme informatique servant à faire des comparaisons
- * entre les méthodes de transport qui sont capable de traiter les milieux
- * continus avec la méthode Monte Carlo. Il résoud l'équation de Boltzmann
- * pour les particules neutres, à une vitesse et dans une dimension.
  *
  * Ce logiciel est régi par la licence CeCILL soumise au droit français et
  * respectant les principes de diffusion des logiciels libres. Vous pouvez
@@ -51,7 +46,7 @@ class CarterTracker : public Transporter {
   std::vector<BankedParticle> transport(
       std::vector<Particle> &bank, bool noise = false,
       std::vector<BankedParticle> *noise_bank = nullptr,
-      std::vector<std::shared_ptr<NoiseSource>> *noise_sources = nullptr);
+      const NoiseMaker *noise_maker = nullptr);
 
  private:
   std::shared_ptr<pndl::EnergyGrid> EGrid;

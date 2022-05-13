@@ -1,13 +1,8 @@
 /*=============================================================================*
- * Copyright (C) 2021, Commissariat à l'Energie Atomique et aux Energies
+ * Copyright (C) 2021-2022, Commissariat à l'Energie Atomique et aux Energies
  * Alternatives
  *
  * Contributeur : Hunter Belanger (hunter.belanger@cea.fr)
- *
- * Ce logiciel est un programme informatique servant à faire des comparaisons
- * entre les méthodes de transport qui sont capable de traiter les milieux
- * continus avec la méthode Monte Carlo. Il résoud l'équation de Boltzmann
- * pour les particules neutres, à une vitesse et dans une dimension.
  *
  * Ce logiciel est régi par la licence CeCILL soumise au droit français et
  * respectant les principes de diffusion des logiciels libres. Vous pouvez
@@ -36,32 +31,7 @@
  * pris connaissance de la licence CeCILL, et que vous en avez accepté les
  * termes.
  *============================================================================*/
-#include <simulation/noise_source.hpp>
-#include <simulation/oscillation_noise_source.hpp>
-#include <utils/error.hpp>
+#include <materials/nuclide.hpp>
 
-std::shared_ptr<NoiseSource> make_noise_source(YAML::Node snode) {
-  // Make sure it is a map
-  if (!snode.IsMap()) {
-    std::string mssg = "Noise source entry must be a map.";
-    fatal_error(mssg, __FILE__, __LINE__);
-  }
-
-  // Get the type of the source
-  if (!snode["type"] || !snode["type"].IsScalar()) {
-    std::string mssg = "No valid type provided to noise source entry.";
-    fatal_error(mssg, __FILE__, __LINE__);
-  }
-  std::string type = snode["type"].as<std::string>();
-
-  std::shared_ptr<NoiseSource> dist = nullptr;
-
-  if (type == "oscillation") {
-    dist = make_oscillation_noise_source(snode);
-  } else {
-    std::string mssg = "Invalid noise source type " + type + ".";
-    fatal_error(mssg, __FILE__, __LINE__);
-  }
-
-  return dist;
-}
+std::map<uint32_t, std::shared_ptr<Nuclide>> nuclides;
+uint32_t Nuclide::id_counter{0};

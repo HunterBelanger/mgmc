@@ -9,10 +9,11 @@ materials:
     fission:    [0.0057671, 0.10622]
     nu_prompt:  [2.576819862, 2.576819862]
     nu_delayed: [0.013860138, 0.013860138]
-    chi:        [1., 0.]
+    chi:        [[1., 0.]]
     delayed_groups:
       probabilities: [1.]
       constants: [0.0851]
+    group-speeds: [1.82304E7, 4.13067E5] # [cm / s]
     
   - id: 2
     name: Water
@@ -21,9 +22,11 @@ materials:
     absorption: [0.00079457, 0.029316]
     fission:    [0., 0.]
     nu:         [0., 0.]
-    chi:        [1., 0.]
+    chi:       [[1., 0.]]
     scatter:   [[0.22519143, 0.028124],
                 [0., 1.188884]]
+    group-speeds: [1.82304E7, 4.13067E5] # [cm / s]
+
 
 surfaces:
   # Surfaces for fuel pin
@@ -33,10 +36,10 @@ surfaces:
   - {id: 4, type: yplane, y0:  0.3657}
 
   # Surfaces for water hole
-  - {id: 5, type: xplane, x0: -0.65}
-  - {id: 6, type: xplane, x0:  0.65}
-  - {id: 7, type: yplane, y0: -0.65}
-  - {id: 8, type: yplane, y0:  0.65}
+  - {id: 5, type: xplane, x0: -0.7}
+  - {id: 6, type: xplane, x0:  0.7}
+  - {id: 7, type: yplane, y0: -0.7}
+  - {id: 8, type: yplane, y0:  0.7}
 
   # Surfaces for outer lattice
   - {id: 11, type: xplane, x0: -10.79, boundary: reflective}
@@ -98,13 +101,13 @@ sources:
     weight: 1.
 
 cancelator:
-  type: approximate-mesh
+  type: approximate
   shape: [170, 170, 170]
   low: [-10.71, -10.71, -2.00]
   hi: [10.71, 10.71, 2.00]
 
 noise-sources:
-  - type: oscillation
+  - type: square-oscillation
     low: [2.1543, -2.8857, -2.00]
     hi: [2.8857, -2.1543, 2.00]
     angular-frequency: 6.28318531 # 2 pi
@@ -118,13 +121,21 @@ entropy:
   shape: [17, 17, 1]
 
 tallies:
- #- low: [-10.79, -10.79, -2.00]
- #  hi: [10.79, 10.79, 2.00]
- #  shape: [138, 138, 1]
- #  energy-bounds: [0., 1., 2.]
- #  quantity: flux
- #  estimator: track-length
- #  name: flux
+  - low: [1.5, -3.5, -2.]
+    hi: [3.5, -1.5, 2.]
+    shape: [75, 75, 1]
+    energy-bounds: [0., 1., 2.]
+    estimator: source
+    quantity: real-source
+    name: real-noise-source
+
+  - low: [1.5, -3.5, -2.]
+    hi: [3.5, -1.5, 2.]
+    shape: [75, 75, 1]
+    energy-bounds: [0., 1., 2.]
+    estimator: source
+    quantity: img-source
+    name: imag-noise-source
 
   - low: [-10.79, -10.79, -2.00]
     hi: [10.79, 10.79, 2.00]
@@ -133,7 +144,6 @@ tallies:
     quantity: real-flux
     estimator: track-length
     name: real-flux
-
 
   - low: [-10.79, -10.79, -2.00]
     hi: [10.79, 10.79, 2.00]
@@ -144,23 +154,23 @@ tallies:
     name: imag-flux
 
 settings:
-  nparticles: 1000000
-  ngenerations: 2010
+  nparticles: 100000
+  ngenerations: 2000
   nignored: 10
   nskip: 3
   ngroups: 2
   transport: surface-tracking
   #simulation: k-eigenvalue
   simulation: noise 
-  #cancellation: true
   noise-cancellation: true
+  inner-generations: true
+  normalize-noise-source: true
   #max-run-time: 5. # Minutes
   noise-angular-frequency: 6.28318531
   keff: 0.99916
   energy-mode: multi-group
   energy-bounds: [0., 1., 2.]
-  group-speeds: [1.82304E7, 4.13067E5] # [cm / s]
-
+  
 plots:
   - type: slice
     basis: xy

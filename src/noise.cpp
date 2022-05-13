@@ -1,13 +1,8 @@
 /*=============================================================================*
- * Copyright (C) 2021, Commissariat à l'Energie Atomique et aux Energies
+ * Copyright (C) 2021-2022, Commissariat à l'Energie Atomique et aux Energies
  * Alternatives
  *
  * Contributeur : Hunter Belanger (hunter.belanger@cea.fr)
- *
- * Ce logiciel est un programme informatique servant à faire des comparaisons
- * entre les méthodes de transport qui sont capable de traiter les milieux
- * continus avec la méthode Monte Carlo. Il résoud l'équation de Boltzmann
- * pour les particules neutres, à une vitesse et dans une dimension.
  *
  * Ce logiciel est régi par la licence CeCILL soumise au droit français et
  * respectant les principes de diffusion des logiciels libres. Vous pouvez
@@ -258,9 +253,6 @@ void Noise::run() {
     power_iteration(true);
     power_iteration_timer.stop();
 
-    // TESTING ONLY
-    tally_noise_source(noise_bank);
-
     // The noise_bank is now populated with noise particles. We may now simulate
     // these noise particles.
     noise_simulation();
@@ -300,9 +292,6 @@ void Noise::run() {
   if (settings::converged && tallies->generations() > 0) {
     tallies->write_tallies();
   }
-
-  // TESTING ONLY Write noise source tally
-  write_noise_source();
 }
 
 void Noise::power_iteration(bool sample_noise) {
@@ -311,7 +300,7 @@ void Noise::power_iteration(bool sample_noise) {
   if (sample_noise == false) {
     next_gen = transporter->transport(bank, false, nullptr, nullptr);
   } else {
-    next_gen = transporter->transport(bank, false, &noise_bank, &noise_sources);
+    next_gen = transporter->transport(bank, false, &noise_bank, &noise_maker);
   }
   std::sort(next_gen.begin(), next_gen.end());
   mpi::synchronize();
@@ -455,6 +444,13 @@ void Noise::noise_simulation() {
       p.wgt2 /= avg_wgt_mag;
     }
   }
+
+  // We score the noise source here, because have have normalized
+  // all the weights by avg_wgt_mag, so that way when we call
+  // rectord_generation on tallies with a multiplier of avg_wgt_mag,
+  // we get the correct answer (as if we hadn't normalized noise
+  // particle weights).
+  tallies->score_noise_source(noise_bank, settings::converged);
 
   // Cancellation may be performed on noise_bank here
 
@@ -750,96 +746,4 @@ void Noise::zero_entropy() {
   if (t_post_entropy) {
     t_post_entropy->zero();
   }
-}
-
-void Noise::tally_noise_source(const std::vector<BankedParticle> &nbank) {
-  double dx = (r_hi.x() - r_low.x()) / static_cast<double>(shape[0]);
-  double dy = (r_hi.y() - r_low.y()) / static_cast<double>(shape[1]);
-  double dz = (r_hi.z() - r_low.z()) / static_cast<double>(shape[2]);
-
-  // Go through all particles and score them in source_gen
-  for (const auto &p : nbank) {
-    int l = 0;
-    if (p.E > 1.) l++;
-    int i = std::floor((p.r.x() - r_low.x()) / dx);
-    int j = std::floor((p.r.y() - r_low.y()) / dy);
-    int k = std::floor((p.r.z() - r_low.z()) / dz);
-    i = std::max(i, 0);
-    j = std::max(j, 0);
-    k = std::max(k, 0);
-    i = std::min(i, static_cast<int>(shape[0]) - 1);
-    j = std::min(j, static_cast<int>(shape[1]) - 1);
-    k = std::min(k, static_cast<int>(shape[2]) - 1);
-
-    uint64_t ui = static_cast<uint64_t>(i);
-    uint64_t uj = static_cast<uint64_t>(j);
-    uint64_t uk = static_cast<uint64_t>(k);
-    uint64_t uE = static_cast<uint64_t>(l);
-
-    source_gen(0, uE, ui, uj, uk) += p.wgt;
-    source_gen(1, uE, ui, uj, uk) += p.wgt2;
-  }
-  noise_source_gen++;
-  double gen = static_cast<double>(noise_source_gen);
-
-  // Update average and variance
-  for (std::size_t i = 0; i < source_gen.size(); i++) {
-    // Get new average
-    double old_avg = source_avg[i];
-    double val = source_gen[i];
-    double avg = old_avg + (val - old_avg) / gen;
-    source_avg[i] = avg;
-
-    // Get new variance
-    double var = source_var[i];
-    var = var + (((val - old_avg) * (val - avg) - (var)) / gen);
-    source_var[i] = var;
-  }
-
-  // Reset gen to zero
-  source_gen.fill(0.);
-}
-
-void Noise::write_noise_source() {
-  std::string fname = "noise_source_rank_" + std::to_string(mpi::rank);
-  std::string mssg = " Writing " + fname + " file...\n";
-  Output::instance()->write(mssg);
-
-  double dx = (r_hi.x() - r_low.x()) / static_cast<double>(shape[0]);
-  double dy = (r_hi.y() - r_low.y()) / static_cast<double>(shape[1]);
-  double dz = (r_hi.z() - r_low.z()) / static_cast<double>(shape[2]);
-
-  std::ofstream file(fname + "_mesh.txt");
-
-  // First write coordinates and number of groups
-  file << " X:";
-  for (int i = 0; i < static_cast<int>(shape[0]) - 1; i++) {
-    double x = i * dx + (0.5 * dx) + r_low.x();
-    file << x << ",";
-  }
-  file << (shape[0] - 1) * dx + (0.5 * dx) + r_low.x() << "\n";
-
-  file << " Y:";
-  for (int i = 0; i < static_cast<int>(shape[1]) - 1; i++) {
-    double y = i * dy + (0.5 * dy) + r_low.y();
-    file << y << ",";
-  }
-  file << (shape[1] - 1) * dy + (0.5 * dy) + r_low.y() << "\n";
-
-  file << " Z:";
-  for (int i = 0; i < static_cast<int>(shape[2]) - 1; i++) {
-    double z = i * dz + (0.5 * dz) + r_low.z();
-    file << z << ",";
-  }
-  file << (shape[2] - 1) * dz + (0.5 * dz) + r_low.z() << "\n";
-  file.close();
-
-  double gen = static_cast<double>(noise_source_gen);
-
-  // Convert source_var to the error on the mean
-  for (std::size_t l = 0; l < source_var.size(); l++)
-    source_var[l] = std::sqrt(source_var[l] / gen);
-
-  source_avg.save(fname + "_avg.npy");
-  source_var.save(fname + "_err.npy");
 }
