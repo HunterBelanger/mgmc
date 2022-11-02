@@ -109,46 +109,6 @@ void CollisionMeshTally::score_collision(const Particle& p,
       case Quantity::ImgFlux:
         scr *= p.wgt2();
         break;
-
-      case Quantity::RealTotal:
-        scr *= p.wgt() * Et;
-        break;
-
-      case Quantity::ImgTotal:
-        scr *= p.wgt2() * Et;
-        break;
-
-      case Quantity::RealElastic:
-        scr *= p.wgt() * mat.Eelastic(p.E());
-        break;
-
-      case Quantity::ImgElastic:
-        scr *= p.wgt2() * mat.Eelastic(p.E());
-        break;
-
-      case Quantity::RealAbsorption:
-        scr *= p.wgt() * mat.Ea(p.E());
-        break;
-
-      case Quantity::ImgAbsorption:
-        scr *= p.wgt2() * mat.Ea(p.E());
-        break;
-
-      case Quantity::RealFission:
-        scr *= p.wgt() * mat.Ef(p.E());
-        break;
-
-      case Quantity::ImgFission:
-        scr *= p.wgt2() * mat.Ef(p.E());
-        break;
-
-      case Quantity::RealMT:
-        scr *= p.wgt() * mat.Emt(mt, p.E());
-        break;
-
-      case Quantity::ImgMT:
-        scr *= p.wgt2() * mat.Emt(mt, p.E());
-        break;
     }
 #ifdef _OPENMP
 #pragma omp atomic
@@ -187,48 +147,8 @@ std::string CollisionMeshTally::quantity_str() const {
       return "RealFlux";
       break;
 
-    case Quantity::RealElastic:
-      return "RealElastic";
-      break;
-
-    case Quantity::RealAbsorption:
-      return "RealAbsorption";
-      break;
-
-    case Quantity::RealFission:
-      return "RealFission";
-      break;
-
-    case Quantity::RealTotal:
-      return "RealTotal";
-      break;
-
-    case Quantity::RealMT:
-      return "RealMT = " + std::to_string(mt);
-      break;
-
     case Quantity::ImgFlux:
       return "ImgFlux";
-      break;
-
-    case Quantity::ImgElastic:
-      return "ImgElastic";
-      break;
-
-    case Quantity::ImgAbsorption:
-      return "ImgAbsorption";
-      break;
-
-    case Quantity::ImgFission:
-      return "ImgFission";
-      break;
-
-    case Quantity::ImgTotal:
-      return "ImgTotal";
-      break;
-
-    case Quantity::ImgMT:
-      return "ImgMT = " + std::to_string(mt);
       break;
   }
 
@@ -361,72 +281,8 @@ std::shared_ptr<CollisionMeshTally> make_collision_mesh_tally(
     mt = static_cast<uint32_t>(tmp_mt);
   } else if (quant_str == "real-flux") {
     quantity = Quantity::RealFlux;
-  } else if (quant_str == "real-total") {
-    quantity = Quantity::RealTotal;
-  } else if (quant_str == "real-elastic") {
-    quantity = Quantity::RealElastic;
-  } else if (quant_str == "real-absorption") {
-    quantity = Quantity::RealAbsorption;
-  } else if (quant_str == "real-fission") {
-    quantity = Quantity::RealFission;
-  } else if (quant_str == "real-mt") {
-    quantity = Quantity::RealMT;
-
-    if (settings::energy_mode == settings::EnergyMode::MG) {
-      // Can't do an MT tally in MG mode !
-      std::string mssg = "Cannot do MT tallies in multi-group mode.";
-      fatal_error(mssg, __FILE__, __LINE__);
-    }
-
-    // Check for mt
-    if (!node["mt"] || !node["mt"].IsScalar()) {
-      std::string mssg =
-          "Quantity of \"mt\" selected, but no provided mt value.";
-      fatal_error(mssg, __FILE__, __LINE__);
-    }
-
-    int32_t tmp_mt = node["mt"].as<int32_t>();
-    if (tmp_mt < 4 || tmp_mt > 891) {
-      std::string mssg =
-          "The value " + std::to_string(tmp_mt) + " is not a valid MT.";
-      fatal_error(mssg, __FILE__, __LINE__);
-    }
-
-    mt = static_cast<uint32_t>(tmp_mt);
   } else if (quant_str == "img-flux") {
     quantity = Quantity::ImgFlux;
-  } else if (quant_str == "img-total") {
-    quantity = Quantity::ImgTotal;
-  } else if (quant_str == "img-elastic") {
-    quantity = Quantity::ImgElastic;
-  } else if (quant_str == "img-absorption") {
-    quantity = Quantity::ImgAbsorption;
-  } else if (quant_str == "img-fission") {
-    quantity = Quantity::ImgFission;
-  } else if (quant_str == "img-mt") {
-    quantity = Quantity::ImgMT;
-
-    if (settings::energy_mode == settings::EnergyMode::MG) {
-      // Can't do an MT tally in MG mode !
-      std::string mssg = "Cannot do MT tallies in multi-group mode.";
-      fatal_error(mssg, __FILE__, __LINE__);
-    }
-
-    // Check for mt
-    if (!node["mt"] || !node["mt"].IsScalar()) {
-      std::string mssg =
-          "Quantity of \"mt\" selected, but no provided mt value.";
-      fatal_error(mssg, __FILE__, __LINE__);
-    }
-
-    int32_t tmp_mt = node["mt"].as<int32_t>();
-    if (tmp_mt < 4 || tmp_mt > 891) {
-      std::string mssg =
-          "The value " + std::to_string(tmp_mt) + " is not a valid MT.";
-      fatal_error(mssg, __FILE__, __LINE__);
-    }
-
-    mt = static_cast<uint32_t>(tmp_mt);
   } else {
     std::string mssg = "Unkown tally quantity \"" + quant_str + "\".";
     fatal_error(mssg, __FILE__, __LINE__);

@@ -438,7 +438,7 @@ double HexLattice::distance_to_line(Position r, Direction u, double x1,
 
 void make_hex_lattice(YAML::Node latt_node, YAML::Node input) {
   // Get id
-  uint32_t id;
+  uint32_t id = 0;
   if (latt_node["id"] && latt_node["id"].IsScalar()) {
     id = latt_node["id"].as<uint32_t>();
   } else {

@@ -40,27 +40,6 @@
 
 class CollisionMeshTally : public MeshTally {
  public:
-  enum class Quantity {
-    Flux,
-    Total,
-    Elastic,
-    Absorption,
-    Fission,
-    MT,
-    RealFlux,
-    ImgFlux,
-    RealTotal,
-    ImgTotal,
-    RealElastic,
-    ImgElastic,
-    RealAbsorption,
-    ImgAbsorption,
-    RealFission,
-    ImgFission,
-    RealMT,
-    ImgMT
-  };
-
   CollisionMeshTally(Position low, Position hi, uint64_t nx, uint64_t ny,
                      uint64_t nz, const std::vector<double>& ebounds,
                      Quantity q, std::string fname, uint32_t mt = 0)

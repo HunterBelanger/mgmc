@@ -44,7 +44,7 @@
 
 class MeshTally {
  public:
-  enum class TallyQuantity {
+  enum class Quantity {
     Flux,
     Total,
     Elastic,
@@ -52,19 +52,7 @@ class MeshTally {
     Fission,
     MT,
     RealFlux,
-    ImgFlux,
-    MagFlux,
-    MagSqrFlux,
-    RealTotal,
-    ImgTotal,
-    RealElastic,
-    ImgElastic,
-    RealAbsorption,
-    ImgAbsorption,
-    RealFission,
-    ImgFission,
-    RealMT,
-    ImgMT
+    ImgFlux
   };
 
   MeshTally(Position low, Position hi, uint64_t nx, uint64_t ny, uint64_t nz,
