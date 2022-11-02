@@ -42,14 +42,14 @@ Box::Box(Position low, Position hi) : low_(low), hi_(hi) {
   }
 }
 
-Position Box::sample(pcg32 &rng) const {
+Position Box::sample(pcg32& rng) const {
   double x = (hi_.x() - low_.x()) * RNG::rand(rng) + low_.x();
   double y = (hi_.y() - low_.y()) * RNG::rand(rng) + low_.y();
   double z = (hi_.z() - low_.z()) * RNG::rand(rng) + low_.z();
   return {x, y, z};
 }
 
-std::shared_ptr<Box> make_box_distribution(const YAML::Node &node) {
+std::shared_ptr<Box> make_box_distribution(const YAML::Node& node) {
   if (!node["low"] || !node["low"].IsSequence() || !(node["low"].size() == 3)) {
     std::string mssg = "No valid low entry for box spatial distribution.";
     fatal_error(mssg, __FILE__, __LINE__);

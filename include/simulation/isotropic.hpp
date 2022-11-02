@@ -40,7 +40,7 @@ class Isotropic : public DirectionDistribution {
  public:
   Isotropic() {}
 
-  Direction sample(pcg32 &rng) const override final;
+  Direction sample(pcg32& rng) const override final;
 };
 
 #endif

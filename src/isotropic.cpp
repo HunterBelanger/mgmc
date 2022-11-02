@@ -34,7 +34,7 @@
 #include <simulation/isotropic.hpp>
 #include <utils/constants.hpp>
 
-Direction Isotropic::sample(pcg32 &rng) const {
+Direction Isotropic::sample(pcg32& rng) const {
   // Sample mu in [-1, 1]
   double mu = 2. * RNG::rand(rng) - 1.;
 

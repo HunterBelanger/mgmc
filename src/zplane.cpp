@@ -38,7 +38,7 @@
 ZPlane::ZPlane(double z, BoundaryType bound, uint32_t i_id, std::string i_name)
     : Surface{bound, i_id, i_name}, z0{z} {}
 
-int ZPlane::sign(const Position &r, const Direction &u) const {
+int ZPlane::sign(const Position& r, const Direction& u) const {
   if (r.z() - z0 > SURFACE_COINCIDENT)
     return 1;
   else if (r.z() - z0 < -SURFACE_COINCIDENT)
@@ -51,7 +51,7 @@ int ZPlane::sign(const Position &r, const Direction &u) const {
   }
 }
 
-double ZPlane::distance(const Position &r, const Direction &u,
+double ZPlane::distance(const Position& r, const Direction& u,
                         bool on_surf) const {
   double diff = z0 - r.z();
   if (on_surf || std::abs(diff) < SURFACE_COINCIDENT || u.z() == 0.)
@@ -62,7 +62,7 @@ double ZPlane::distance(const Position &r, const Direction &u,
     return diff / u.z();
 }
 
-Direction ZPlane::norm(const Position & /*r*/) const { return {0., 0., 1.}; }
+Direction ZPlane::norm(const Position& /*r*/) const { return {0., 0., 1.}; }
 
 //===========================================================================
 // Non-Member Functions

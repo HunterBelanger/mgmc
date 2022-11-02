@@ -31,8 +31,6 @@
  * pris connaissance de la licence CeCILL, et que vous en avez accepté les
  * termes.
  *============================================================================*/
-#include <pthread.h>
-
 #include <exception>
 #include <simulation/tallies.hpp>
 #include <string>
@@ -144,13 +142,13 @@ void Tallies::clear_generation() {
   leak_score = 0.;
   mig_area_score = 0.;
 
-  for (auto &tally : collision_mesh_tallies_) tally->clear_generation();
+  for (auto& tally : collision_mesh_tallies_) tally->clear_generation();
 
-  for (auto &tally : track_length_mesh_tallies_) tally->clear_generation();
+  for (auto& tally : track_length_mesh_tallies_) tally->clear_generation();
 
-  for (auto &tally : source_mesh_tallies_) tally->clear_generation();
+  for (auto& tally : source_mesh_tallies_) tally->clear_generation();
 
-  for (auto &tally : noise_source_mesh_tallies_) tally->clear_generation();
+  for (auto& tally : noise_source_mesh_tallies_) tally->clear_generation();
 }
 
 void Tallies::calc_gen_values() {
@@ -181,29 +179,29 @@ void Tallies::record_generation(double multiplier) {
   update_avg_and_var(k_tot, k_tot_avg, k_tot_var);
   update_avg_and_var(mig, mig_avg, mig_var);
 
-  for (auto &tally : collision_mesh_tallies_)
+  for (auto& tally : collision_mesh_tallies_)
     tally->record_generation(multiplier);
 
-  for (auto &tally : track_length_mesh_tallies_)
+  for (auto& tally : track_length_mesh_tallies_)
     tally->record_generation(multiplier);
 
-  for (auto &tally : source_mesh_tallies_) tally->record_generation(multiplier);
+  for (auto& tally : source_mesh_tallies_) tally->record_generation(multiplier);
 
-  for (auto &tally : noise_source_mesh_tallies_)
+  for (auto& tally : noise_source_mesh_tallies_)
     tally->record_generation(multiplier);
 }
 
 void Tallies::write_tallies() {
-  for (auto &tally : collision_mesh_tallies_) tally->write_tally();
+  for (auto& tally : collision_mesh_tallies_) tally->write_tally();
 
-  for (auto &tally : track_length_mesh_tallies_) tally->write_tally();
+  for (auto& tally : track_length_mesh_tallies_) tally->write_tally();
 
-  for (auto &tally : source_mesh_tallies_) tally->write_tally();
+  for (auto& tally : source_mesh_tallies_) tally->write_tally();
 
-  for (auto &tally : noise_source_mesh_tallies_) tally->write_tally();
+  for (auto& tally : noise_source_mesh_tallies_) tally->write_tally();
 }
 
-void Tallies::update_avg_and_var(double x, double &x_avg, double &x_var) {
+void Tallies::update_avg_and_var(double x, double& x_avg, double& x_var) {
   double dgen = static_cast<double>(gen);
   double x_avg_old = x_avg;
   double x_var_old = x_var;
@@ -217,7 +215,7 @@ void Tallies::update_avg_and_var(double x, double &x_avg, double &x_var) {
             ((x_var_old) / (dgen - 1.));
 }
 
-void add_mesh_tally(Tallies &tallies, const YAML::Node &node) {
+void add_mesh_tally(Tallies& tallies, const YAML::Node& node) {
   // First get type of estimator. Default is collision
   std::string estimator_str = "collision";
   if (node["estimator"]) {

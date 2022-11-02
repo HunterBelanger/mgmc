@@ -50,9 +50,9 @@ class Transporter {
   virtual ~Transporter() = default;
 
   virtual std::vector<BankedParticle> transport(
-      std::vector<Particle> &bank, bool noise = false,
-      std::vector<BankedParticle> *noise_bank = nullptr,
-      const NoiseMaker *noise_maker = nullptr) = 0;
+      std::vector<Particle>& bank, bool noise = false,
+      std::vector<BankedParticle>* noise_bank = nullptr,
+      const NoiseMaker* noise_maker = nullptr) = 0;
 
  protected:
   std::shared_ptr<Tallies> tallies;
@@ -66,16 +66,31 @@ class Transporter {
     double mig_score = 0.;
   };
 
-  void russian_roulette(Particle &p);
+  void russian_roulette(Particle& p);
 
-  void collision(Particle &p, MaterialHelper &mat,
-                 ThreadLocalScores &thread_scores, bool noise = false,
-                 const NoiseMaker *noise_maker = nullptr);
+  void collision(Particle& p, MaterialHelper& mat,
+                 ThreadLocalScores& thread_scores, bool noise = false,
+                 const NoiseMaker* noise_maker = nullptr);
 
-  void make_noise_copy(Particle &p, const MicroXSs &microxs) const;
+  void branchless_collision(Particle& p, MaterialHelper& mat,
+                            ThreadLocalScores& thread_scores);
 
-  void make_fission_neutrons(Particle &p, const MicroXSs &microxs,
-                             const Nuclide &nuclide, bool noise) const;
+  void branchless_collision_mat(Particle& p, MaterialHelper& mat,
+                                ThreadLocalScores& thread_scores);
+
+  void branchless_collision_iso(Particle& p, MaterialHelper& mat,
+                                ThreadLocalScores& thread_scores);
+
+  void branching_collision(Particle& p, MaterialHelper& mat,
+                           ThreadLocalScores& thread_scores, bool noise);
+
+  void make_noise_copy(Particle& p, const MicroXSs& microxs) const;
+
+  void do_scatter(Particle& p, const Nuclide& nuclide,
+                  const MicroXSs& microxs) const;
+
+  void make_fission_neutrons(Particle& p, const MicroXSs& microxs,
+                             const Nuclide& nuclide, bool noise) const;
 
 };  // Transporter
 

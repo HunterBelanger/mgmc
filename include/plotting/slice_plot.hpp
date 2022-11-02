@@ -77,7 +77,7 @@ class SlicePlot {
   Position get_pixel_position(uint64_t i, uint64_t j) const;
   Position get_start_position(uint64_t i) const;
   Direction get_tracking_direction() const;
-  Pixel get_color(const ::Cell* cell);
+  Pixel get_color(::Cell* cell);
   Pixel get_random_color();
 
 };  // SlicePlot

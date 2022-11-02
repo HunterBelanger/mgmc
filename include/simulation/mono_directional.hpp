@@ -43,7 +43,7 @@ class MonoDirectional : public DirectionDistribution {
  public:
   MonoDirectional(Direction u) : direction_(u) {}
 
-  Direction sample(pcg32 & /*rng*/) const override final { return direction_; }
+  Direction sample(pcg32& /*rng*/) const override final { return direction_; }
 
   Direction direction() const { return direction_; }
 
@@ -52,6 +52,6 @@ class MonoDirectional : public DirectionDistribution {
 };
 
 std::shared_ptr<MonoDirectional> make_mono_directional_distribution(
-    const YAML::Node &node);
+    const YAML::Node& node);
 
 #endif

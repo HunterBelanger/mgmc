@@ -69,21 +69,20 @@ class MGNuclide : public Nuclide {
                                    double E) const override final;
   ScatterInfo sample_scatter(double Ein, const Direction& u, std::size_t i,
                              pcg32& rng) const override final;
-  ScatterInfo sample_prompt_fission(double Ein, const Direction& u,
+  ScatterInfo sample_scatter_mt(uint32_t mt, double Ein, const Direction& u,
+                                std::size_t i, pcg32& rng) const override final;
+  FissionInfo sample_fission(double Ein, const Direction& u, std::size_t i,
+                             double Pdelayed, pcg32& rng) const override final;
+  FissionInfo sample_prompt_fission(double Ein, const Direction& u,
                                     std::size_t i,
                                     pcg32& rng) const override final;
-  ScatterInfo sample_delayed_fission(double Ein, const Direction& u,
+  FissionInfo sample_delayed_fission(double Ein, const Direction& u,
                                      std::size_t g,
                                      pcg32& rng) const override final;
 
   double max_energy() const override final;
   double min_energy() const override final;
   double speed(double E, std::size_t i) const override final;
-
-  BankedParticle make_fission_neutron(
-      Particle& p, std::size_t energy_index, double P_del,
-      std::optional<double> w_noise = std::nullopt) const override final;
-  void scatter(Particle& p, std::size_t energy_index) const override final;
 
   // Methods unique to MGNuclide, for exact MG cancellation.
   const std::vector<double>& group_speeds() const { return group_speeds_; }

@@ -40,14 +40,12 @@
 //============================================================================
 // Versioning
 constexpr int VERSION_MAJOR{0};
-constexpr int VERSION_MINOR{2};
+constexpr int VERSION_MINOR{3};
 constexpr int VERSION_PATCH{0};
 constexpr bool DEVELOPMENT_VERSION{false};
 //#define DEV_VERSION  // TO BE REMOVED FOR NON-DEV VERSIONS
-constexpr int COPYRIGHT_YEAR{2021};
-#define MGMC_VERSION_STRING "0.2.0"
-//  constexpr const char VERSION_STRING[] = {VERSION_MAJOR+'0', '.',
-//    VERSION_MINOR+'0','.',VERSION_PATCH+'0'};
+constexpr int COPYRIGHT_YEAR{2022};
+#define MGMC_VERSION_STRING "0.3.0"
 
 //============================================================================
 // Mathematical and Physical Constants

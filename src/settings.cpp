@@ -70,6 +70,8 @@ double keff = 1.;  // Used in noise transport
 
 bool converged = false;
 
+bool pair_distance_sqrd = false;
+
 bool regional_cancellation = false;
 bool regional_cancellation_noise = false;
 
@@ -79,6 +81,10 @@ bool rng_stride_warnings = false;
 
 bool save_source = false;
 bool load_source_file = false;
+
+bool branchless_splitting = false;
+bool branchless_combing = true;
+bool branchless_material = true;
 
 // Energy bounds for multi-group mode
 std::vector<double> energy_bounds{};

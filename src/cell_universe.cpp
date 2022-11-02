@@ -39,10 +39,9 @@ CellUniverse::CellUniverse(std::vector<uint32_t> i_ind, uint32_t i_id,
                            std::string i_name)
     : Universe{i_id, i_name}, cell_indicies{i_ind} {}
 
-std::shared_ptr<Cell> CellUniverse::get_cell(Position r, Direction u,
-                                             int32_t on_surf) const {
+Cell* CellUniverse::get_cell(Position r, Direction u, int32_t on_surf) const {
   // Check if we have a cell_search_mesh to use.
-  std::shared_ptr<Cell> mesh_cell = nullptr;
+  Cell* mesh_cell = nullptr;
   if (geometry::universes.size() == 1 && geometry::cell_search_mesh) {
     mesh_cell = geometry::cell_search_mesh->find_cell(r, u, on_surf);
   }
@@ -50,26 +49,7 @@ std::shared_ptr<Cell> CellUniverse::get_cell(Position r, Direction u,
 
   // Go through each cell, and return the first one for which the
   // given position is inside the cell
-  for (auto &indx : cell_indicies) {
-    if (geometry::cells[indx]->is_inside(r, u, on_surf))
-      return geometry::cells[indx];
-  }
-  // No cell found, particle is lost
-  return nullptr;
-}
-
-Cell *CellUniverse::get_cell_naked_ptr(Position r, Direction u,
-                                       int32_t on_surf) const {
-  // Check if we have a cell_search_mesh to use.
-  Cell *mesh_cell = nullptr;
-  if (geometry::universes.size() == 1 && geometry::cell_search_mesh) {
-    mesh_cell = geometry::cell_search_mesh->find_cell_naked_ptr(r, u, on_surf);
-  }
-  if (mesh_cell) return mesh_cell;
-
-  // Go through each cell, and return the first one for which the
-  // given position is inside the cell
-  for (auto &indx : cell_indicies) {
+  for (auto& indx : cell_indicies) {
     if (geometry::cells[indx]->is_inside(r, u, on_surf))
       return geometry::cells[indx].get();
   }
@@ -77,14 +57,13 @@ Cell *CellUniverse::get_cell_naked_ptr(Position r, Direction u,
   return nullptr;
 }
 
-std::shared_ptr<Cell> CellUniverse::get_cell(std::vector<GeoLilyPad> &stack,
-                                             Position r, Direction u,
-                                             int32_t on_surf) const {
+Cell* CellUniverse::get_cell(std::vector<GeoLilyPad>& stack, Position r,
+                             Direction u, int32_t on_surf) const {
   // First push universe info onto the stack
   stack.push_back({GeoLilyPad::PadType::Universe, id_, r, {0, 0, 0}, false});
 
   // Check if we have a cell_search_mesh to use.
-  std::shared_ptr<Cell> mesh_cell = nullptr;
+  Cell* mesh_cell = nullptr;
   if (geometry::universes.size() == 1 && geometry::cell_search_mesh) {
     mesh_cell = geometry::cell_search_mesh->find_cell(r, u, on_surf);
   }
@@ -97,7 +76,7 @@ std::shared_ptr<Cell> CellUniverse::get_cell(std::vector<GeoLilyPad> &stack,
 
   // Go through each cell, and return the first one for which the
   // given position is inside the cell
-  for (auto &indx : cell_indicies) {
+  for (auto& indx : cell_indicies) {
     if (geometry::cells[indx]->is_inside(r, u, on_surf)) {
       auto cell_id = geometry::cells[indx]->id();
 
@@ -106,7 +85,7 @@ std::shared_ptr<Cell> CellUniverse::get_cell(std::vector<GeoLilyPad> &stack,
           {GeoLilyPad::PadType::Cell, cell_id, r, {0, 0, 0}, false});
 
       // Return cell
-      return geometry::cells[indx];
+      return geometry::cells[indx].get();
     }
   }
   // No cell found, particle is lost
@@ -137,7 +116,7 @@ void make_cell_universe(YAML::Node uni_node) {
       uint32_t cell_id = uni_node["cells"][c].as<uint32_t>();
 
       // Get index for id
-      uint32_t cell_indx;
+      uint32_t cell_indx = 0;
       if (cell_id_to_indx.find(cell_id) == cell_id_to_indx.end()) {
         std::string mssg = "Referenced cell id " + std::to_string(cell_id) +
                            " could not be found.";

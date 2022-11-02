@@ -39,7 +39,7 @@
 Cone::Cone(Direction u, double aperture)
     : direction_(u), aperture_(std::cos(aperture)) {}
 
-Direction Cone::sample(pcg32 &rng) const {
+Direction Cone::sample(pcg32& rng) const {
   // Sample mu in [aperture_, 1]
   double mu = (1. - aperture_) * RNG::rand(rng) + aperture_;
 
@@ -51,7 +51,7 @@ Direction Cone::sample(pcg32 &rng) const {
 
 double Cone::aperture() const { return std::acos(aperture_); }
 
-std::shared_ptr<Cone> make_cone_distribution(const YAML::Node &node) {
+std::shared_ptr<Cone> make_cone_distribution(const YAML::Node& node) {
   if (!node["direction"] || !node["direction"].IsSequence() ||
       !(node["direction"].size() == 3)) {
     std::string mssg = "No valid direction entry for cone distribution.";

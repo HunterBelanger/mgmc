@@ -59,7 +59,7 @@ struct BankedParticle {
   double parents_previous_energy = 0;                  // E3
   double Esmp_parent = 0.;
 
-  bool operator<(const BankedParticle &rhs) const {
+  bool operator<(const BankedParticle& rhs) const {
     if (parent_history_id < rhs.parent_history_id) return true;
     if (parent_history_id == rhs.parent_history_id &&
         parent_daughter_id < rhs.parent_daughter_id)
@@ -83,10 +83,10 @@ class Particle {
   Particle(Position r, Direction u, double engy, double wgt, double wgt2,
            uint64_t id = 0);
 
-  Position &r() { return state.position; }
-  const Position &r() const { return state.position; }
-  Direction &u() { return state.direction; }
-  const Direction &u() const { return state.direction; }
+  Position& r() { return state.position; }
+  const Position& r() const { return state.position; }
+  Direction& u() { return state.direction; }
+  const Direction& u() const { return state.direction; }
   double wgt() const { return state.weight; }
   double wgt2() const { return state.weight2; }
   bool is_alive() const { return alive; }
@@ -99,7 +99,7 @@ class Particle {
   uint64_t secondary_id() const { return secondary_id_; }
   uint64_t daughter_counter() { return daughter_counter_++; }
   double Esmp() const { return Esmp_; }
-  const Position &r_birth() const { return r_birth_; }
+  const Position& r_birth() const { return r_birth_; }
 
   std::size_t num_secondaries() const { return secondaries.size(); }
 
@@ -135,15 +135,15 @@ class Particle {
 
   void kill() { alive = false; }
 
-  void add_fission_particle(const BankedParticle &fiss_particle) {
+  void add_fission_particle(const BankedParticle& fiss_particle) {
     history_fission_bank.push_back(fiss_particle);
   }
 
-  void add_noise_particle(const BankedParticle &noise_particle) {
+  void add_noise_particle(const BankedParticle& noise_particle) {
     history_noise_bank.push_back(noise_particle);
   }
 
-  void empty_fission_bank(std::vector<BankedParticle> &bank) {
+  void empty_fission_bank(std::vector<BankedParticle>& bank) {
     bank.insert(std::end(bank), std::begin(history_fission_bank),
                 std::end(history_fission_bank));
 
@@ -151,7 +151,7 @@ class Particle {
     history_fission_bank.shrink_to_fit();
   }
 
-  void empty_noise_bank(std::vector<BankedParticle> &bank) {
+  void empty_noise_bank(std::vector<BankedParticle>& bank) {
     bank.insert(std::end(bank), std::begin(history_noise_bank),
                 std::end(history_noise_bank));
 

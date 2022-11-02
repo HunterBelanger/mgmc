@@ -42,7 +42,7 @@
 
 std::map<uint32_t, std::shared_ptr<Material>> materials;
 
-void fill_mg_material(const YAML::Node &mat,
+void fill_mg_material(const YAML::Node& mat,
                       std::shared_ptr<Material> material) {
   std::string read_mssg = " Reading material " + material->get_name() + ".\n";
   Output::instance()->write(read_mssg);
@@ -53,8 +53,7 @@ void fill_mg_material(const YAML::Node &mat,
   material->add_component(1., nuclide);
 }
 
-void make_material(const YAML::Node &mat, const YAML::Node & /*xsdir*/,
-                   bool plotting_mode) {
+void make_material(const YAML::Node& mat, bool plotting_mode) {
   std::shared_ptr<Material> material = std::make_shared<Material>();
 
   // Get material id

@@ -108,7 +108,7 @@ ApproximateMeshCancelator::ApproximateMeshCancelator(
   shape[3] = static_cast<uint32_t>(energy_edges.size() - 1);
 }
 
-bool ApproximateMeshCancelator::add_particle(BankedParticle &p) {
+bool ApproximateMeshCancelator::add_particle(BankedParticle& p) {
   // Get bin indicies for spacial coordinates
   int i = std::floor((p.r.x() - r_low.x()) / dx);
   int j = std::floor((p.r.y() - r_low.y()) / dy);
@@ -139,15 +139,15 @@ bool ApproximateMeshCancelator::add_particle(BankedParticle &p) {
   }
 
   // The particle fits into the mesh somewhere
-  auto key = [shape = shape](const int &i, const int &j, const int &k,
-                             const int &l) {
+  auto key = [shape = shape](const int& i, const int& j, const int& k,
+                             const int& l) {
     return l + shape[3] * (k + shape[2] * (j + shape[1] * i));
   };
 
   int bin_key = key(i, j, k, l);
 
   if (bins.find(bin_key) == bins.end()) {
-    bins[bin_key] = std::vector<BankedParticle *>();
+    bins[bin_key] = std::vector<BankedParticle*>();
   }
 
   bins[bin_key].push_back(&p);
@@ -155,10 +155,10 @@ bool ApproximateMeshCancelator::add_particle(BankedParticle &p) {
   return true;
 }
 
-void ApproximateMeshCancelator::perform_cancellation(pcg32 & /*rng*/) {
+void ApproximateMeshCancelator::perform_cancellation(pcg32& /*rng*/) {
   // Go through all bins in the mesh
-  for (auto &key_bin_pair : bins) {
-    auto &bin = key_bin_pair.second;
+  for (auto& key_bin_pair : bins) {
+    auto& bin = key_bin_pair.second;
 
     // Only do cancelation if we have more than one particle per bin
     if (bin.size() > 1) {
@@ -171,7 +171,7 @@ void ApproximateMeshCancelator::perform_cancellation(pcg32 & /*rng*/) {
       double sum_wgt2 = 0.;
 
       // Go through all particles in the bin
-      for (const auto &p : bin) {
+      for (const auto& p : bin) {
         if (p->wgt > 0.)
           has_pos_w1 = true;
         else if (p->wgt < 0.)
@@ -191,7 +191,7 @@ void ApproximateMeshCancelator::perform_cancellation(pcg32 & /*rng*/) {
       double avg_wgt2 = sum_wgt2 / N;
 
       // Go through all particles and change their weights
-      for (auto &p : bin) {
+      for (auto& p : bin) {
         if (has_pos_w1 && has_neg_w1) p->wgt = avg_wgt;
         if (has_pos_w2 && has_neg_w2) p->wgt2 = avg_wgt2;
       }
@@ -202,14 +202,14 @@ void ApproximateMeshCancelator::perform_cancellation(pcg32 & /*rng*/) {
 }
 
 std::vector<BankedParticle> ApproximateMeshCancelator::get_new_particles(
-    pcg32 & /*rng*/) {
+    pcg32& /*rng*/) {
   return {};
 }
 
 void ApproximateMeshCancelator::clear() { bins.clear(); }
 
 std::shared_ptr<ApproximateMeshCancelator> make_approximate_mesh_cancelator(
-    const YAML::Node &node) {
+    const YAML::Node& node) {
   // Get low
   if (!node["low"] || !node["low"].IsSequence() || !(node["low"].size() == 3)) {
     std::string mssg = "No valid low entry for approximate mesh cancelator.";

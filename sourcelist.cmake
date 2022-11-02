@@ -1,4 +1,4 @@
-set(CHENILLE_SOURCE_FILES ${CHENILLE_SOURCE_FILES}
+set(MGMC_SOURCE_FILES ${MGMC_SOURCE_FILES}
   src/material.cpp
   src/mg_nuclide.cpp
   src/mg_angle_distribution.cpp
@@ -7,6 +7,7 @@ set(CHENILLE_SOURCE_FILES ${CHENILLE_SOURCE_FILES}
   src/surface_tracker.cpp
   src/delta_tracker.cpp
   src/carter_tracker.cpp
+  src/implicit_leakage_delta_tracker.cpp
   src/transporter.cpp
   src/approximate_mesh_cancelator.cpp
   src/basic_exact_mg_cancelator.cpp
@@ -14,8 +15,10 @@ set(CHENILLE_SOURCE_FILES ${CHENILLE_SOURCE_FILES}
   src/cell_search_mesh.cpp
   src/cancelator.cpp
   src/noise.cpp
+  src/branchless_power_iterator.cpp
   src/power_iterator.cpp
   src/fixed_source.cpp
+  src/modified_fixed_source.cpp
   src/noise_maker.cpp
   src/square_oscillation_noise_source.cpp
   src/flat_vibration_noise_source.cpp

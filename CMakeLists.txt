@@ -61,7 +61,7 @@ FetchContent_MakeAvailable(PCG_CXX)
 add_subdirectory("${CMAKE_SOURCE_DIR}/vendor/sobol")
 
 #===============================================================================
-include(sourcelist.cmake) # For CHENILLE_SOURCE_FILES list
+include(sourcelist.cmake) # For MGMC_SOURCE_FILES list
 
 # Get the Git hash for define
 execute_process(COMMAND git describe --dirty --always
@@ -70,7 +70,7 @@ execute_process(COMMAND git describe --dirty --always
                 OUTPUT_STRIP_TRAILING_WHITESPACE
                )
 
-add_executable(mgmc src/main.cpp ${CHENILLE_SOURCE_FILES})
+add_executable(mgmc src/main.cpp ${MGMC_SOURCE_FILES})
 target_include_directories(mgmc PRIVATE include)
 target_compile_features(mgmc PRIVATE cxx_std_17)
 target_compile_options(mgmc PRIVATE -W -Wall -Wextra -Wpedantic)

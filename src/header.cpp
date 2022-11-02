@@ -43,10 +43,10 @@ const std::string logo =
     "                         ██║ ╚═╝ ██║╚██████╔╝██║ ╚═╝ ██║╚██████╗\n"
     "                         ╚═╝     ╚═╝ ╚═════╝ ╚═╝     ╚═╝ ╚═════╝\n\n";
 
-const std::string header =
+    const std::string header =
     "                         Multi-Group Monte Carlo Transport Code\n\n";
 
-const std::string info =
+    const std::string info =
     " Copyright (C) 2021-2022, Commissariat à l'énergie atomique et aux "
     "énergies "
     "alternatives (CEA)\n"

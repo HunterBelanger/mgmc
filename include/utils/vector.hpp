@@ -49,7 +49,7 @@ class Vector {
   double y() const { return y_; }
   double z() const { return z_; }
 
-  double dot(const Vector &v) const {
+  double dot(const Vector& v) const {
     return x_ * v.x() + y_ * v.y() + z_ * v.z();
   }
 
@@ -65,29 +65,29 @@ class Vector {
 //============================================================================
 // Overloaded Operator Declarations
 //----------------------------------------------------------------------------
-inline Vector operator+(const Vector &v1, const Vector &v2) {
+inline Vector operator+(const Vector& v1, const Vector& v2) {
   return Vector(v1.x() + v2.x(), v1.y() + v2.y(), v1.z() + v2.z());
 }
 
-inline Vector operator-(const Vector &v1, const Vector &v2) {
+inline Vector operator-(const Vector& v1, const Vector& v2) {
   return Vector(v1.x() - v2.x(), v1.y() - v2.y(), v1.z() - v2.z());
 }
 
-inline Vector operator*(const Vector &v, double d) {
+inline Vector operator*(const Vector& v, double d) {
   return Vector(v.x() * d, v.y() * d, v.z() * d);
 }
 
-inline Vector operator*(double d, const Vector &v) { return v * d; }
+inline Vector operator*(double d, const Vector& v) { return v * d; }
 
-inline Vector operator/(const Vector &v, double d) {
+inline Vector operator/(const Vector& v, double d) {
   return Vector(v.x() / d, v.y() / d, v.z() / d);
 }
 
-inline double operator*(const Vector &v1, const Vector &v2) {
+inline double operator*(const Vector& v1, const Vector& v2) {
   return v1.dot(v2);
 }
 
-inline std::ostream &operator<<(std::ostream &output, const Vector &v) {
+inline std::ostream& operator<<(std::ostream& output, const Vector& v) {
   output << "<" << v.x() << "," << v.y() << "," << v.z() << ">";
   return output;
 }

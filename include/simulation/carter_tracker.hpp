@@ -44,9 +44,9 @@ class CarterTracker : public Transporter {
   ~CarterTracker() = default;
 
   std::vector<BankedParticle> transport(
-      std::vector<Particle> &bank, bool noise = false,
-      std::vector<BankedParticle> *noise_bank = nullptr,
-      const NoiseMaker *noise_maker = nullptr);
+      std::vector<Particle>& bank, bool noise = false,
+      std::vector<BankedParticle>* noise_bank = nullptr,
+      const NoiseMaker* noise_maker = nullptr);
 
  private:
   std::shared_ptr<pndl::EnergyGrid> EGrid;

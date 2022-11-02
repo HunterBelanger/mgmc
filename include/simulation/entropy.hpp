@@ -65,7 +65,7 @@ class Entropy {
   }
   ~Entropy() = default;
 
-  void add_point(const Position &r, const double &w) {
+  void add_point(const Position& r, const double& w) {
     // Get bin idecies
     int32_t nx =
         static_cast<int32_t>(std::floor((r.x() - lower_corner.x()) / dx));
@@ -106,7 +106,7 @@ class Entropy {
     // them to it's own generation score. We do this with MPI_Reduce.
     // We must sadly allocate a recieving buffer to do this however.
     std::vector<double> receiving_buffer;
-    double *receiving_buffer_ptr = nullptr;
+    double* receiving_buffer_ptr = nullptr;
 
     // If we are master, we allocate the space in the receiving buffer and
     // set the receiving pointer.
@@ -176,7 +176,7 @@ class Entropy {
 
   void zero() {
     // Zero all bins
-    for (auto &b : this->bins) b = 0.;
+    for (auto& b : this->bins) b = 0.;
 
     this->total_weight = 0.;
   }

@@ -38,7 +38,7 @@
 #include <utils/error.hpp>
 #include <utils/settings.hpp>
 
-std::shared_ptr<Cancelator> make_cancelator(const YAML::Node &node) {
+std::shared_ptr<Cancelator> make_cancelator(const YAML::Node& node) {
   if (!node["type"] || !node["type"].IsScalar()) {
     std::string mssg = "Invalid type entry for cancelator.";
     fatal_error(mssg, __FILE__, __LINE__);

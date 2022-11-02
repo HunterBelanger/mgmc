@@ -39,8 +39,8 @@
 extern std::map<uint32_t, size_t> cell_id_to_indx;
 
 CellSearchMesh::CellSearchMesh(
-    Position low, Position hi, const std::array<uint32_t, 3> &shape,
-    const std::vector<std::vector<std::shared_ptr<Cell>>> &elements)
+    Position low, Position hi, const std::array<uint32_t, 3>& shape,
+    const std::vector<std::vector<std::shared_ptr<Cell>>>& elements)
     : shape_(shape),
       pitch_{0., 0., 0.},
       r_low(low),
@@ -51,8 +51,8 @@ CellSearchMesh::CellSearchMesh(
   pitch_[2] = (r_hi.z() - r_low.z()) / static_cast<double>(shape_[2]);
 }
 
-std::array<int32_t, 3> CellSearchMesh::get_tile(const Position &r,
-                                                const Direction &u) const {
+std::array<int32_t, 3> CellSearchMesh::get_tile(const Position& r,
+                                                const Direction& u) const {
   int32_t nx =
       static_cast<int32_t>(std::floor((r.x() - r_low.x()) / pitch_[0]));
   int32_t ny =
@@ -88,7 +88,7 @@ std::array<int32_t, 3> CellSearchMesh::get_tile(const Position &r,
   return {nx, ny, nz};
 }
 
-bool CellSearchMesh::is_inside(const Position &r, const Direction &u) const {
+bool CellSearchMesh::is_inside(const Position& r, const Direction& u) const {
   // Get index of each axis
   auto tile = get_tile(r, u);
   int nx = tile[0];
@@ -105,7 +105,7 @@ bool CellSearchMesh::is_inside(const Position &r, const Direction &u) const {
   return true;
 }
 
-std::size_t CellSearchMesh::index(const Position &r, const Direction &u) const {
+std::size_t CellSearchMesh::index(const Position& r, const Direction& u) const {
   auto tile = get_tile(r, u);
 
   if ((tile[0] < 0 || tile[0] >= static_cast<int>(shape_[0])) ||
@@ -120,14 +120,13 @@ std::size_t CellSearchMesh::index(const Position &r, const Direction &u) const {
   return indx;
 }
 
-const std::vector<std::shared_ptr<Cell>> &CellSearchMesh::index_cells(
+const std::vector<std::shared_ptr<Cell>>& CellSearchMesh::index_cells(
     std::size_t i) const {
   return elements_[i];
 }
 
-std::shared_ptr<Cell> CellSearchMesh::find_cell(const Position &r,
-                                                const Direction &u,
-                                                int32_t on_surf) const {
+Cell* CellSearchMesh::find_cell(const Position& r, const Direction& u,
+                                int32_t on_surf) const {
   // First, we get our index
   std::size_t indx = this->index(r, u);
 
@@ -137,29 +136,8 @@ std::shared_ptr<Cell> CellSearchMesh::find_cell(const Position &r,
   }
 
   // We are in the mesh. Get the list of cells to check.
-  const auto &cells = this->index_cells(indx);
-  for (const auto &cell : cells) {
-    if (cell->is_inside(r, u, on_surf)) return cell;
-  }
-
-  // Apparently we didn't find a cell we are in. This is odd. Probably
-  // a bad mesh.
-  return nullptr;
-}
-
-Cell *CellSearchMesh::find_cell_naked_ptr(const Position &r, const Direction &u,
-                                          int32_t on_surf) const {
-  // First, we get our index
-  std::size_t indx = this->index(r, u);
-
-  if (indx >= this->size()) {
-    // Apparently, we aren't in the mesh.
-    return nullptr;
-  }
-
-  // We are in the mesh. Get the list of cells to check.
-  const auto &cells = this->index_cells(indx);
-  for (const auto &cell : cells) {
+  const auto& cells = this->index_cells(indx);
+  for (const auto& cell : cells) {
     if (cell->is_inside(r, u, on_surf)) return cell.get();
   }
 
@@ -168,7 +146,7 @@ Cell *CellSearchMesh::find_cell_naked_ptr(const Position &r, const Direction &u,
   return nullptr;
 }
 
-std::shared_ptr<CellSearchMesh> make_cell_search_mesh(const YAML::Node &node) {
+std::shared_ptr<CellSearchMesh> make_cell_search_mesh(const YAML::Node& node) {
   // Make sure the node is a map
   if (!node.IsMap()) {
     std::string mssg = "Cell search mesh entry must be a map.";

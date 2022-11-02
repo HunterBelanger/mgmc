@@ -41,12 +41,14 @@
 
 class MaterialHelper {
  public:
-  MaterialHelper(std::shared_ptr<Material> material, double E)
+  enum class BranchlessReaction { SCATTER, FISSION };
+
+  MaterialHelper(Material* material, double E)
       : mat(nullptr), index(), xs(), E_(0.) {
     this->set_material(material, E);
   }
 
-  void set_material(std::shared_ptr<Material> material, double E) {
+  void set_material(Material* material, double E) {
     if (mat != material) {
       mat = material;
       index.resize(mat->composition().size());
@@ -160,10 +162,8 @@ class MaterialHelper {
     return Emt_;
   }
 
-  // Returns the pointer to the Nuclide, as well as the current index into
-  // the energy grid for that nuclide.
-  std::pair<const std::shared_ptr<Nuclide> &, MicroXSs> sample_nuclide(
-      double E, pcg32 &rng, bool noise = false) {
+  std::pair<const std::shared_ptr<Nuclide>&, MicroXSs> sample_nuclide(
+      double E, pcg32& rng, bool noise = false) {
     if (E_ != E) {
       get_energy_index(E);
     }
@@ -176,7 +176,7 @@ class MaterialHelper {
 
     int comp_ind = RNG::discrete(rng, xs);
     size_t nuclide_index = index[comp_ind];
-    const std::shared_ptr<Nuclide> &nuclide = composition(comp_ind).nuclide;
+    const std::shared_ptr<Nuclide>& nuclide = composition(comp_ind).nuclide;
 
     // Get MicroXSs for use latter on
     MicroXSs xss;
@@ -200,13 +200,55 @@ class MaterialHelper {
     return {nuclide, xss};
   }
 
+  std::pair<const std::shared_ptr<Nuclide>&, MicroXSs>
+  sample_branchless_nuclide(double E, pcg32& rng, BranchlessReaction reaction) {
+    if (E_ != E) {
+      get_energy_index(E);
+    }
+
+    for (size_t i = 0; i < mat->composition().size(); i++) {
+      double comp_xs = 0.;
+      switch (reaction) {
+        case BranchlessReaction::SCATTER:
+          comp_xs = composition(i).concentration *
+                    (composition(i).nuclide->total_xs(E_, index[i]) -
+                     (composition(i).nuclide->disappearance_xs(E_, index[i]) +
+                      composition(i).nuclide->fission_xs(E_, index[i])));
+          break;
+        case BranchlessReaction::FISSION:
+          comp_xs = composition(i).concentration *
+                    composition(i).nuclide->nu_total(E_, index[i]) *
+                    composition(i).nuclide->fission_xs(E_, index[i]);
+          break;
+      }
+      xs[i] = comp_xs;
+    }
+
+    int comp_ind = RNG::discrete(rng, xs);
+    size_t nuclide_index = index[comp_ind];
+    const std::shared_ptr<Nuclide>& nuclide = composition(comp_ind).nuclide;
+
+    // Get MicroXSs for use latter on
+    MicroXSs xss;
+    xss.energy = E_;
+    xss.concentration = composition(comp_ind).concentration;
+    xss.energy_index = nuclide_index;
+    xss.total = nuclide->total_xs(xss.energy, xss.energy_index);
+    xss.nu_total = nuclide->nu_total(xss.energy, xss.energy_index);
+    xss.nu_delayed = nuclide->nu_delayed(xss.energy, xss.energy_index);
+    xss.fission = nuclide->fission_xs(xss.energy, xss.energy_index);
+    xss.absorption =
+        nuclide->disappearance_xs(xss.energy, xss.energy_index) + xss.fission;
+    return {nuclide, xss};
+  }
+
  private:
-  std::shared_ptr<Material> mat;
+  Material* mat;
   std::vector<size_t> index;
   std::vector<double> xs;
   double E_;
 
-  const Material::Component &composition(size_t i) {
+  const Material::Component& composition(size_t i) {
     return mat->composition()[i];
   }
 

@@ -35,7 +35,6 @@
 #define EXACT_MG_CANCELATOR_H
 
 #include <array>
-#include <cstddef>
 #include <cstdint>
 #include <materials/material.hpp>
 #include <materials/mg_nuclide.hpp>

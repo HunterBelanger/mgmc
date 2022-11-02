@@ -344,7 +344,7 @@ void Noise::power_iteration(bool sample_noise) {
   }
 
   bank.reserve(next_gen.size());
-  for (auto &p : next_gen) {
+  for (auto& p : next_gen) {
     bank.push_back(Particle(p.r, p.u, p.E, p.wgt, histories_counter++));
     bank.back().initialize_rng(settings::rng_seed, settings::rng_stride);
   }
@@ -366,7 +366,7 @@ void Noise::power_iteration(bool sample_noise) {
 }
 
 inline void Noise::perform_regional_cancellation(
-    std::vector<uint64_t> &nums, std::vector<BankedParticle> &bank) {
+    std::vector<uint64_t>& nums, std::vector<BankedParticle>& bank) {
   // To perform cancellation with MPI, what we first do is send ALL of the
   // banked particles back to master. Yes, I know, this is very inefficient. But
   // cancellation works best with the highest density of particles possbile.
@@ -383,7 +383,7 @@ inline void Noise::perform_regional_cancellation(
     std::size_t n_lost_boys = 0;
 
     // Distribute Particles to Cancellation Bins
-    for (auto &p : bank) {
+    for (auto& p : bank) {
       if (!cancelator->add_particle(p)) n_lost_boys++;
     }
 
@@ -432,14 +432,14 @@ void Noise::noise_simulation() {
   if (settings::normalize_noise_source) {
     // Normalize particle weights by the average weight magnitude.
     double sum_wgt_mag = 0.;
-    for (const auto &p : noise_bank) {
+    for (const auto& p : noise_bank) {
       sum_wgt_mag += std::sqrt(p.wgt * p.wgt + p.wgt2 * p.wgt2);
     }
 
     mpi::Allreduce_sum(sum_wgt_mag);
 
     avg_wgt_mag = sum_wgt_mag / static_cast<double>(N_noise_tot);
-    for (auto &p : noise_bank) {
+    for (auto& p : noise_bank) {
       p.wgt /= avg_wgt_mag;
       p.wgt2 /= avg_wgt_mag;
     }
@@ -462,7 +462,7 @@ void Noise::noise_simulation() {
 
   // Bank for noise particles.
   std::vector<Particle> nbank;
-  for (auto &p : noise_bank) {
+  for (auto& p : noise_bank) {
     nbank.emplace_back(p.r, p.u, p.E, p.wgt, p.wgt2, histories_counter++);
     nbank.back().initialize_rng(settings::rng_seed, settings::rng_stride);
   }
@@ -506,7 +506,7 @@ void Noise::noise_simulation() {
     }
 
     nbank.reserve(fission_bank.size());
-    for (const auto &p : fission_bank) {
+    for (const auto& p : fission_bank) {
       nbank.emplace_back(p.r, p.u, p.E, p.wgt, p.wgt2, histories_counter++);
       nbank.back().initialize_rng(settings::rng_seed, settings::rng_stride);
     }
@@ -616,7 +616,7 @@ void Noise::noise_output() {
   out->write(output.str());
 }
 
-void Noise::normalize_weights(std::vector<BankedParticle> &next_gen) {
+void Noise::normalize_weights(std::vector<BankedParticle>& next_gen) {
   double W = 0.;
   double W_neg = 0.;
   double W_pos = 0.;
@@ -690,7 +690,7 @@ void Noise::premature_kill() {
 }
 
 void Noise::compute_pre_cancellation_entropy(
-    std::vector<BankedParticle> &next_gen) {
+    std::vector<BankedParticle>& next_gen) {
   if (t_pre_entropy && settings::regional_cancellation) {
     for (size_t i = 0; i < next_gen.size(); i++) {
       p_pre_entropy->add_point(next_gen[i].r, next_gen[i].wgt);
@@ -709,7 +709,7 @@ void Noise::compute_pre_cancellation_entropy(
 }
 
 void Noise::compute_post_cancellation_entropy(
-    std::vector<BankedParticle> &next_gen) {
+    std::vector<BankedParticle>& next_gen) {
   if (t_pre_entropy && settings::regional_cancellation) {
     for (size_t i = 0; i < next_gen.size(); i++) {
       p_post_entropy->add_point(next_gen[i].r, next_gen[i].wgt);

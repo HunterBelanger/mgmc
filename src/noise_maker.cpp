@@ -115,7 +115,7 @@ bool NoiseMaker::is_inside(const Particle& p) const {
   return false;
 }
 
-std::shared_ptr<Material> NoiseMaker::make_fake_material(
+std::unique_ptr<Material> NoiseMaker::make_fake_material(
     const Particle& p) const {
   std::vector<uint32_t> nuclides_list;
   std::vector<std::shared_ptr<VibrationNoiseSource>> sources_list;
@@ -152,7 +152,7 @@ std::shared_ptr<Material> NoiseMaker::make_fake_material(
   }
 
   // Now we make a new material, and add all of the components.
-  std::shared_ptr<Material> fake_mat = std::make_shared<Material>();
+  std::unique_ptr<Material> fake_mat = std::make_unique<Material>();
 
   for (std::size_t i = 0; i < nuclides_list.size(); i++) {
     const uint32_t& nuclide_id = nuclides_list[i];
@@ -206,9 +206,33 @@ void NoiseMaker::sample_vibration_noise_fission(
   const double P_delayed = microxs.nu_delayed / microxs.nu_total;
 
   for (int n = 0; n < n_new; n++) {
+    auto finfo = nuclide->sample_fission(p.E(), p.u(), microxs.energy_index,
+                                         P_delayed, p.rng);
+
     // Sample a banked noise particle from fission.
-    BankedParticle bnp =
-        nuclide->make_fission_neutron(p, microxs.energy_index, P_delayed, w);
+    BankedParticle bnp{p.r(),
+                       finfo.direction,
+                       finfo.energy,
+                       p.wgt(),
+                       p.wgt2(),
+                       p.history_id(),
+                       p.daughter_counter(),
+                       p.previous_collision_virtual(),
+                       p.previous_r(),
+                       p.previous_u(),
+                       p.previous_E(),
+                       p.E(),
+                       p.Esmp()};
+
+    if (finfo.delayed) {
+      std::complex<double> wgt_cmpx{bnp.wgt, bnp.wgt2};
+      double lambda = finfo.precursor_decay_constant;
+      double denom = (lambda * lambda) + (w * w);
+      std::complex<double> mult{lambda * lambda / denom, -lambda * w / denom};
+      wgt_cmpx *= mult;
+      bnp.wgt = wgt_cmpx.real();
+      bnp.wgt2 = wgt_cmpx.imag();
+    }
 
     // Apply the weight corrections
     std::complex<double> bnp_wgt{bnp.wgt, bnp.wgt2};
@@ -384,18 +408,41 @@ void NoiseMaker::sample_oscillation_noise_fission(
   }
 
   for (int i = 0; i < n_new; i++) {
-    auto fiss_noise_particle =
-        nuclide->make_fission_neutron(p, microxs.energy_index, P_delayed, w);
+    auto finfo = nuclide->sample_fission(p.E(), p.u(), microxs.energy_index,
+                                         P_delayed, p.rng);
+
+    BankedParticle bnp{p.r(),
+                       finfo.direction,
+                       finfo.energy,
+                       p.wgt(),
+                       p.wgt2(),
+                       p.history_id(),
+                       p.daughter_counter(),
+                       p.previous_collision_virtual(),
+                       p.previous_r(),
+                       p.previous_u(),
+                       p.previous_E(),
+                       p.E(),
+                       p.Esmp()};
+
+    if (finfo.delayed) {
+      std::complex<double> wgt_cmpx{bnp.wgt, bnp.wgt2};
+      double lambda = finfo.precursor_decay_constant;
+      double denom = (lambda * lambda) + (w * w);
+      std::complex<double> mult{lambda * lambda / denom, -lambda * w / denom};
+      wgt_cmpx *= mult;
+      bnp.wgt = wgt_cmpx.real();
+      bnp.wgt2 = wgt_cmpx.imag();
+    }
 
     // Modify weight
-    std::complex<double> fnp_weight{fiss_noise_particle.wgt,
-                                    fiss_noise_particle.wgt2};
+    std::complex<double> fnp_weight{bnp.wgt, bnp.wgt2};
     fnp_weight *= dEf_Ef;
-    fiss_noise_particle.wgt = fnp_weight.real();
-    fiss_noise_particle.wgt2 = fnp_weight.imag();
+    bnp.wgt = fnp_weight.real();
+    bnp.wgt2 = fnp_weight.imag();
 
     // Save BankedParticle
-    p.add_noise_particle(fiss_noise_particle);
+    p.add_noise_particle(bnp);
   }
 }
 
@@ -418,8 +465,8 @@ void NoiseMaker::sample_vibration_noise_source(Particle& p, MaterialHelper& mat,
   // Now, we need to get our ficticious material, which represents a
   // sort of homogenization of all materials involved in all of the
   // noise regions where the particle is currently located.
-  std::shared_ptr<Material> fake_material = make_fake_material(p);
-  MaterialHelper fake_mat(fake_material, p.E());
+  std::unique_ptr<Material> fake_material = make_fake_material(p);
+  MaterialHelper fake_mat(fake_material.get(), p.E());
 
   // We now sample a nuclide from this fake material.
   auto nuclide_data = fake_mat.sample_nuclide(p.E(), p.rng);

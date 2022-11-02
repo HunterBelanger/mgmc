@@ -43,11 +43,14 @@
 #include <iomanip>
 #include <ios>
 #include <materials/nuclide.hpp>
+#include <simulation/branchless_power_iterator.hpp>
 #include <simulation/carter_tracker.hpp>
 #include <simulation/delta_tracker.hpp>
 #include <simulation/entropy.hpp>
 #include <simulation/fixed_source.hpp>
+#include <simulation/implicit_leakage_delta_tracker.hpp>
 #include <simulation/mesh_tally.hpp>
+#include <simulation/modified_fixed_source.hpp>
 #include <simulation/noise.hpp>
 #include <simulation/power_iterator.hpp>
 #include <simulation/surface_tracker.hpp>
@@ -120,14 +123,11 @@ void parse_input_file(std::string fname) {
 }
 
 void make_materials(YAML::Node input, bool plotting_mode) {
-  // Make an initially Null xsdir node
-  YAML::Node xsdir;
-
   // Parse materials
   if (input["materials"] && input["materials"].IsSequence()) {
     // Go through all materials
     for (size_t s = 0; s < input["materials"].size(); s++) {
-      make_material(input["materials"][s], xsdir, plotting_mode);
+      make_material(input["materials"][s], plotting_mode);
     }
 
   } else {
@@ -141,7 +141,7 @@ void make_materials(YAML::Node input, bool plotting_mode) {
   // nuclides in the problem.
   if (plotting_mode) return;
 
-  for (const auto &mat : materials) {
+  for (const auto& mat : materials) {
     double emax = mat.second->max_energy();
     double emin = mat.second->min_energy();
 
@@ -233,11 +233,11 @@ void make_geometry(YAML::Node input) {
         input["neighbors"].as<std::vector<std::vector<uint32_t>>>();
 
     // Go through all cells in the geometry
-    for (const auto &cell : geometry::cells) {
+    for (const auto& cell : geometry::cells) {
       // Get reference to vector of all neighbor IDs
-      const std::vector<uint32_t> &neighbors = neighbors_array[cell->id() - 1];
+      const std::vector<uint32_t>& neighbors = neighbors_array[cell->id() - 1];
 
-      for (const auto &neighbor : neighbors) {
+      for (const auto& neighbor : neighbors) {
         // Check if the neighbor doesn't exist
         if (cell_id_to_indx.find(neighbor) == cell_id_to_indx.end()) {
           // We couldn't find a cell with that ID, so we skip trying to
@@ -375,7 +375,7 @@ void find_universe(YAML::Node input, uint32_t id) {
 
 void make_settings(YAML::Node input) {
   if (input["settings"] && input["settings"].IsMap()) {
-    const auto &settnode = input["settings"];
+    const auto& settnode = input["settings"];
 
     // Get simulation type
     std::string sim_type;
@@ -388,8 +388,12 @@ void make_settings(YAML::Node input) {
 
     if (sim_type == "k-eigenvalue") {
       settings::mode = settings::SimulationMode::K_EIGENVALUE;
+    } else if (sim_type == "branchless-k-eigenvalue") {
+      settings::mode = settings::SimulationMode::BRANCHLESS_K_EIGENVALUE;
     } else if (sim_type == "fixed-source") {
       settings::mode = settings::SimulationMode::FIXED_SOURCE;
+    } else if (sim_type == "modified-fixed-source") {
+      settings::mode = settings::SimulationMode::MODIFIED_FIXED_SOURCE;
     } else if (sim_type == "noise") {
       settings::mode = settings::SimulationMode::NOISE;
     } else {
@@ -397,10 +401,58 @@ void make_settings(YAML::Node input) {
       fatal_error(mssg, __FILE__, __LINE__);
     }
 
+    // Get brancless settings if we are using branchless-k-eigenvalue
+    if (settings::mode == settings::SimulationMode::BRANCHLESS_K_EIGENVALUE) {
+      // Splitting
+      if (settnode["branchless-splitting"]) {
+        settings::branchless_splitting =
+            settnode["branchless-splitting"].as<bool>();
+      }
+
+      if (settings::branchless_splitting) {
+        Output::instance()->write(
+            " Using splitting during branchless collisions.\n");
+      } else {
+        Output::instance()->write(
+            " No splitting during branchless collisions.\n");
+      }
+
+      // Combing
+      if (settnode["branchless-combing"]) {
+        settings::branchless_combing =
+            settnode["branchless-combing"].as<bool>();
+      }
+
+      if (settings::branchless_combing) {
+        Output::instance()->write(
+            " Using combing between fission generations.\n");
+      } else {
+        Output::instance()->write(" No combing between fission generations.\n");
+      }
+
+      // Branchless on Material or Isotope
+      if (settnode["branchless-material"]) {
+        settings::branchless_material =
+            settnode["branchless-material"].as<bool>();
+      }
+
+      if (settings::branchless_material) {
+        Output::instance()->write(
+            " Performing branchless collision on material.\n");
+      } else {
+        Output::instance()->write(
+            " Performing branchless collision on isotope.\n");
+      }
+    }
+
     // Get transport method
     if (settnode["transport"] && settnode["transport"].IsScalar()) {
       if (settnode["transport"].as<std::string>() == "delta-tracking") {
         settings::tracking = settings::TrackingMode::DELTA_TRACKING;
+      } else if (settnode["transport"].as<std::string>() ==
+                 "implicit-leakage-delta-tracking") {
+        settings::tracking =
+            settings::TrackingMode::IMPLICIT_LEAKAGE_DELTA_TRACKING;
       } else if (settnode["transport"].as<std::string>() ==
                  "surface-tracking") {
         settings::tracking = settings::TrackingMode::SURFACE_TRACKING;
@@ -418,7 +470,7 @@ void make_settings(YAML::Node input) {
             input["sampling-xs"].as<std::vector<double>>();
 
         // Make sure all ratios are positive
-        for (const auto &v : settings::sample_xs_ratio) {
+        for (const auto& v : settings::sample_xs_ratio) {
           if (v <= 0.) {
             std::string mssg = "Sampling XS ratios must be > 0.";
             fatal_error(mssg, __FILE__, __LINE__);
@@ -451,7 +503,7 @@ void make_settings(YAML::Node input) {
     } else {
       // MG by default
       settings::energy_mode = settings::EnergyMode::MG;
-      Output::instance()->write(" Running in Multi-Group mode.\n");
+      Output::instance()->write(" Running in Continuous-Energy mode.\n");
     }
 
     // If we are multi-group, get number of groups
@@ -532,6 +584,15 @@ void make_settings(YAML::Node input) {
       fatal_error(mssg, __FILE__, __LINE__);
     } else {
       settings::nignored = 0;
+    }
+
+    if ((settings::mode == settings::SimulationMode::K_EIGENVALUE ||
+         settings::mode == settings::SimulationMode::BRANCHLESS_K_EIGENVALUE) &&
+        settings::nignored >= settings::ngenerations) {
+      std::stringstream mssg;
+      mssg << "Number of ignored generations is greater than or equal to the";
+      mssg << "number of total generations.";
+      fatal_error(mssg.str(), __FILE__, __LINE__);
     }
 
     // Get number of skips between noise batches.
@@ -683,6 +744,17 @@ void make_settings(YAML::Node input) {
       }
     }
 
+    // Get option for computing pair distance sqrd for power iteration
+    if (settnode["pair-distance-sqrd"] &&
+        settnode["pair-distance-sqrd"].IsScalar()) {
+      settings::pair_distance_sqrd = settnode["pair-distance-sqrd"].as<bool>();
+    } else if (settnode["pair-distance-sqrd"]) {
+      std::string mssg =
+          "The settings option \"pair-distance-sqrd\" must be a single boolean "
+          "value.";
+      fatal_error(mssg, __FILE__, __LINE__);
+    }
+
   } else {
     std::string mssg = "Not settings specified in input file.";
     fatal_error(mssg, __FILE__, __LINE__);
@@ -723,6 +795,11 @@ void make_transporter() {
       Output::instance()->write(" Using Delta-Tracking.\n");
       break;
 
+    case settings::TrackingMode::IMPLICIT_LEAKAGE_DELTA_TRACKING:
+      transporter = std::make_shared<ImplicitLeakageDeltaTracker>(tallies);
+      Output::instance()->write(" Using Implicit-Leakage-Delta-Tracking.\n");
+      break;
+
     case settings::TrackingMode::CARTER_TRACKING:
       transporter = std::make_shared<CarterTracker>(tallies);
       Output::instance()->write(" Using Carter-Tracking.\n");
@@ -741,8 +818,8 @@ void make_cancellation_bins(YAML::Node input) {
   // Make sure we are using cancelation with a valid transport method !
   if (settings::mode == settings::SimulationMode::FIXED_SOURCE) {
     std::string mssg =
-        "Cancellation may only be used with k-eigenvalue "
-        "or noise problems.";
+        "Cancellation may only be used with k-eigenvalue, "
+        "modified-fixed-source, or noise problems.";
     fatal_error(mssg, __FILE__, __LINE__);
   }
 
@@ -798,8 +875,23 @@ void make_simulation() {
       }
       break;
 
+    case settings::SimulationMode::BRANCHLESS_K_EIGENVALUE:
+      if (!settings::regional_cancellation) {
+        simulation = std::make_shared<BranchlessPowerIterator>(
+            tallies, transporter, sources);
+      } else {
+        simulation = std::make_shared<BranchlessPowerIterator>(
+            tallies, transporter, sources, cancelator);
+      }
+      break;
+
     case settings::SimulationMode::FIXED_SOURCE:
       simulation = std::make_shared<FixedSource>(tallies, transporter, sources);
+      break;
+
+    case settings::SimulationMode::MODIFIED_FIXED_SOURCE:
+      simulation =
+          std::make_shared<ModifiedFixedSource>(tallies, transporter, sources);
       break;
 
     case settings::SimulationMode::NOISE:

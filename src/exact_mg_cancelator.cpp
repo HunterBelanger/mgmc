@@ -93,9 +93,7 @@ ExactMGCancelator::ExactMGCancelator(
   }
 
   std::set<std::size_t> bined_groups;
-  uint32_t ngrps = 0;
   for (const auto& bin : group_bins) {
-    ngrps += bin.size();
     for (const auto& grp : bin) {
       if (grp >= settings::ngroups) {
         std::stringstream mssg;
@@ -171,13 +169,13 @@ std::optional<ExactMGCancelator::Key> ExactMGCancelator::get_key(
 }
 
 Material* ExactMGCancelator::get_material(const Position& r) const {
-  Cell* cell = geometry::get_cell_naked_ptr(r, {1., 0., 0.});
+  Cell* cell = geometry::get_cell(r, {1., 0., 0.});
 
   if (!cell) {
     return nullptr;
   }
 
-  Material* mat = cell->material().get();
+  Material* mat = cell->material();
 
   if (!mat) {
     std::stringstream mssg;
@@ -537,9 +535,6 @@ std::vector<BankedParticle> ExactMGCancelator::get_new_particles(pcg32& rng) {
       Material* mat = mat_bin_pair.first;
       CancelBin& bin = mat_bin_pair.second;
 
-      // Get bin positions
-      auto mat_ptr = mat->shared_from_this();
-
       // Determine number of new particles to add
       uint32_t N = std::ceil(
           std::max(std::abs(bin.uniform_wgt), std::abs(bin.uniform_wgt2)));
@@ -552,7 +547,7 @@ std::vector<BankedParticle> ExactMGCancelator::get_new_particles(pcg32& rng) {
         // This SHOULD be safe, as in theory, we wont construct an
         // ExactMGCancelator instance in CE mode.
         MGNuclide* nuclide =
-            static_cast<MGNuclide*>(mat_ptr->composition()[0].nuclide.get());
+            static_cast<MGNuclide*>(mat->composition()[0].nuclide.get());
 
         // Make all N uniform particles for this bin
         for (size_t i = 0; i < N; i++) {
@@ -672,9 +667,7 @@ std::shared_ptr<ExactMGCancelator> make_exact_mg_cancelator(
   std::array<std::size_t, 4> shape{Nx, Ny, Nz, Ne};
 
   std::set<std::size_t> bined_groups;
-  uint32_t ngrps = 0;
   for (const auto& bin : group_bins) {
-    ngrps += bin.size();
     for (const auto& grp : bin) {
       if (grp >= settings::ngroups) {
         std::stringstream mssg;

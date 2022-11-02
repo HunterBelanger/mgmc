@@ -40,7 +40,7 @@ class Point : public SpatialDistribution {
  public:
   Point(Position position) : position_(position) {}
 
-  Position sample(pcg32 & /*rng*/) const override final { return position_; }
+  Position sample(pcg32& /*rng*/) const override final { return position_; }
 
   Position position() const { return position_; }
 
@@ -48,6 +48,6 @@ class Point : public SpatialDistribution {
   Position position_;
 };
 
-std::shared_ptr<Point> make_point_distribution(const YAML::Node &node);
+std::shared_ptr<Point> make_point_distribution(const YAML::Node& node);
 
 #endif

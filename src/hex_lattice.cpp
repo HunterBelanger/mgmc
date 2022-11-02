@@ -86,8 +86,7 @@ bool HexLattice::is_inside(Position r, Direction /*u*/) const {
   return true;
 }
 
-std::shared_ptr<Cell> HexLattice::get_cell(Position r, Direction u,
-                                           int32_t on_surf) const {
+Cell* HexLattice::get_cell(Position r, Direction u, int32_t on_surf) const {
   // Get coordinates in frame of center tile
   Position r_o{r.x() - X_o, r.y() - Y_o, r.z() - Z_o};
 
@@ -135,61 +134,8 @@ std::shared_ptr<Cell> HexLattice::get_cell(Position r, Direction u,
                                                                 on_surf);
 }
 
-Cell* HexLattice::get_cell_naked_ptr(Position r, Direction u,
-                                     int32_t on_surf) const {
-  // Get coordinates in frame of center tile
-  Position r_o{r.x() - X_o, r.y() - Y_o, r.z() - Z_o};
-
-  // Get qr of hearest hex tile
-  std::array<int32_t, 3> qrz = get_tile(r_o, u);
-
-  // Get the ring of hex tile
-  uint32_t ring = get_ring({qrz[0], qrz[1]});
-
-  // See if valid ring or not
-  if (ring >= Nrings) {
-    // Invalid ring
-    if (outer_universe_index == -1) {
-      return nullptr;
-    } else {
-      return geometry::universes[outer_universe_index]->get_cell_naked_ptr(
-          r, u, on_surf);
-    }
-  }
-
-  // Check z bin now
-  if (qrz[2] < 0 || qrz[2] >= static_cast<int32_t>(Nz)) {
-    if (outer_universe_index == -1) {
-      return nullptr;
-    } else {
-      return geometry::universes[outer_universe_index]->get_cell_naked_ptr(
-          r, u, on_surf);
-    }
-  }
-
-  // Inside a lattice bin
-  size_t indx = linear_index({qrz[0], qrz[1]}, qrz[2]);
-
-  // If -1, send to outside universe
-  if (lattice_universes[indx] == -1) {
-    if (outer_universe_index == -1) {
-      return nullptr;
-    } else {
-      return geometry::universes[outer_universe_index]->get_cell_naked_ptr(
-          r, u, on_surf);
-    }
-  }
-
-  // Move coordinates to tile center
-  Position center = tile_center(qrz[0], qrz[1], qrz[2]);
-  Position r_tile = r_o - center;
-  return geometry::universes[lattice_universes[indx]]->get_cell_naked_ptr(
-      r_tile, u, on_surf);
-}
-
-std::shared_ptr<Cell> HexLattice::get_cell(std::vector<GeoLilyPad>& stack,
-                                           Position r, Direction u,
-                                           int32_t on_surf) const {
+Cell* HexLattice::get_cell(std::vector<GeoLilyPad>& stack, Position r,
+                           Direction u, int32_t on_surf) const {
   // Get coordinates in frame of center tile
   Position r_o{r.x() - X_o, r.y() - Y_o, r.z() - Z_o};
 

@@ -75,61 +75,61 @@ class Direction : public Vector {
 
 //============================================================================
 // Addition Operators
-inline Vector operator+(const Direction &d1, const Direction &d2) {
+inline Vector operator+(const Direction& d1, const Direction& d2) {
   return Vector(d1.x() + d2.x(), d1.y() + d2.y(), d1.z() + d2.z());
 }
 
-inline Vector operator+(const Direction &d, const Vector &v) {
+inline Vector operator+(const Direction& d, const Vector& v) {
   return Vector(d.x() + v.x(), d.y() + v.y(), d.z() + v.z());
 }
 
-inline Vector operator+(const Vector &v, const Direction &d) {
+inline Vector operator+(const Vector& v, const Direction& d) {
   return Vector(d.x() + v.x(), d.y() + v.y(), d.z() + v.z());
 }
 
 //============================================================================
 // Subtraction Operators
-inline Vector operator-(const Direction &d1, const Direction &d2) {
+inline Vector operator-(const Direction& d1, const Direction& d2) {
   return Vector(d1.x() - d2.x(), d1.y() - d2.y(), d1.z() - d2.z());
 }
 
-inline Vector operator-(const Direction &d, const Vector &v) {
+inline Vector operator-(const Direction& d, const Vector& v) {
   return Vector(d.x() - v.x(), d.y() - v.y(), d.z() - v.z());
 }
 
-inline Vector operator-(const Vector &v, const Direction &d) {
+inline Vector operator-(const Vector& v, const Direction& d) {
   return Vector(v.x() - d.x(), v.y() - d.y(), v.z() - d.z());
 }
 
 //============================================================================
 // Dot Product Operators
-inline double operator*(const Direction &d, const Direction &v) {
+inline double operator*(const Direction& d, const Direction& v) {
   return d.dot(v);
 }
 
-inline double operator*(const Direction &d, const Vector &v) {
+inline double operator*(const Direction& d, const Vector& v) {
   return d.dot(v);
 }
 
-inline double operator*(const Vector &v, const Direction &d) {
+inline double operator*(const Vector& v, const Direction& d) {
   return d.dot(v);
 }
 
 //============================================================================
 // Scaling Operators
-inline Vector operator*(const Direction &d, double c) {
+inline Vector operator*(const Direction& d, double c) {
   return Vector(d.x() * c, d.y() * c, d.z() * c);
 }
 
-inline Vector operator*(double c, const Direction &d) {
+inline Vector operator*(double c, const Direction& d) {
   return Vector(d.x() * c, d.y() * c, d.z() * c);
 }
 
-inline Vector operator/(const Direction &d, double c) {
+inline Vector operator/(const Direction& d, double c) {
   return Vector(d.x() / c, d.y() / c, d.z() / c);
 }
 
-inline std::ostream &operator<<(std::ostream &output, const Direction &d) {
+inline std::ostream& operator<<(std::ostream& output, const Direction& d) {
   output << "<<" << d.x() << "," << d.y() << "," << d.z() << ">>";
   return output;
 }

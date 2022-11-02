@@ -48,67 +48,67 @@ class Position : public Vector {
 
 //============================================================================
 // Comparison Operators
-inline bool operator==(const Position &p1, const Position &p2) {
+inline bool operator==(const Position& p1, const Position& p2) {
   return (p1.x() == p2.x()) && (p1.y() == p2.y()) && (p1.z() == p2.z());
 }
 
-inline bool operator!=(const Position &p1, const Position &p2) {
+inline bool operator!=(const Position& p1, const Position& p2) {
   return !(p1 == p2);
 }
 
 //============================================================================
 // Addition Operators
-inline Position operator+(const Position &p1, const Position &p2) {
+inline Position operator+(const Position& p1, const Position& p2) {
   return Position(p1.x() + p2.x(), p1.y() + p2.y(), p1.z() + p2.z());
 }
 
-inline Position operator+(const Vector &v1, const Position &p2) {
+inline Position operator+(const Vector& v1, const Position& p2) {
   return Position(v1.x() + p2.x(), v1.y() + p2.y(), v1.z() + p2.z());
 }
 
-inline Position operator+(const Position &p2, const Vector &v1) {
+inline Position operator+(const Position& p2, const Vector& v1) {
   return Position(v1.x() + p2.x(), v1.y() + p2.y(), v1.z() + p2.z());
 }
 
 //============================================================================
 // Subtraction Operators
-inline Position operator-(const Position &p1, const Position &p2) {
+inline Position operator-(const Position& p1, const Position& p2) {
   return Position(p1.x() - p2.x(), p1.y() - p2.y(), p1.z() - p2.z());
 }
 
-inline Position operator-(const Vector &v1, const Position &p2) {
+inline Position operator-(const Vector& v1, const Position& p2) {
   return Position(v1.x() - p2.x(), v1.y() - p2.y(), v1.z() - p2.z());
 }
 
-inline Position operator-(const Position &p2, const Vector &v1) {
+inline Position operator-(const Position& p2, const Vector& v1) {
   return Position(p2.x() - v1.x(), p2.y() - v1.y(), p2.z() - v1.z());
 }
 
 //============================================================================
 // Dot Products
-inline double operator*(const Position &p1, const Position &p2) {
+inline double operator*(const Position& p1, const Position& p2) {
   return p1.dot(p2);
 }
 
-inline double operator*(const Vector &p1, const Position &p2) {
+inline double operator*(const Vector& p1, const Position& p2) {
   return p1.dot(p2);
 }
 
-inline double operator*(const Position &p2, const Vector &p1) {
+inline double operator*(const Position& p2, const Vector& p1) {
   return p1.dot(p2);
 }
 
-inline Position operator*(const Position &p, double d) {
+inline Position operator*(const Position& p, double d) {
   return Position(p.x() * d, p.y() * d, p.z() * d);
 }
 
-inline Position operator*(double d, const Position &p) { return p * d; }
+inline Position operator*(double d, const Position& p) { return p * d; }
 
-inline Position operator/(const Position &p, double d) {
+inline Position operator/(const Position& p, double d) {
   return Position(p.x() / d, p.y() / d, p.z() / d);
 }
 
-inline std::ostream &operator<<(std::ostream &output, const Position &p) {
+inline std::ostream& operator<<(std::ostream& output, const Position& p) {
   output << "(" << p.x() << "," << p.y() << "," << p.z() << ")";
   return output;
 }

@@ -44,12 +44,12 @@ class Cancelator {
  public:
   virtual ~Cancelator() = default;
 
-  virtual bool add_particle(BankedParticle &p) = 0;
-  virtual void perform_cancellation(pcg32 &rng) = 0;
-  virtual std::vector<BankedParticle> get_new_particles(pcg32 &rng) = 0;
+  virtual bool add_particle(BankedParticle& p) = 0;
+  virtual void perform_cancellation(pcg32& rng) = 0;
+  virtual std::vector<BankedParticle> get_new_particles(pcg32& rng) = 0;
   virtual void clear() = 0;
 };
 
-std::shared_ptr<Cancelator> make_cancelator(const YAML::Node &node);
+std::shared_ptr<Cancelator> make_cancelator(const YAML::Node& node);
 
 #endif

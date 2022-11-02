@@ -35,7 +35,7 @@
 #include <utils/error.hpp>
 
 std::shared_ptr<MonoDirectional> make_mono_directional_distribution(
-    const YAML::Node &node) {
+    const YAML::Node& node) {
   if (!node["direction"] || !node["direction"].IsSequence() ||
       !(node["direction"].size() == 3)) {
     std::string mssg =

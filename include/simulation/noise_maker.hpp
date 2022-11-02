@@ -73,7 +73,7 @@ class NoiseMaker {
   std::complex<double> dEt(const Particle& p, double w) const;
   std::complex<double> dN(const Position& r, uint32_t nuclide_id,
                           double w) const;
-  std::shared_ptr<Material> make_fake_material(const Particle& p) const;
+  std::unique_ptr<Material> make_fake_material(const Particle& p) const;
 
   void sample_noise_copy(Particle& p, MaterialHelper& mat,
                          const double w) const;

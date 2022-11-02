@@ -87,16 +87,16 @@ class Noise : public Simulation {
   int Wnet = 0, Wpos = 0, Wneg = 0, Wtot = 0;
 
   // Private helper methods
-  void compute_pre_cancellation_entropy(std::vector<BankedParticle> &next_gen);
-  void compute_post_cancellation_entropy(std::vector<BankedParticle> &next_gen);
+  void compute_pre_cancellation_entropy(std::vector<BankedParticle>& next_gen);
+  void compute_post_cancellation_entropy(std::vector<BankedParticle>& next_gen);
   void zero_entropy();
 
   bool out_of_time(int gen);
   void check_time(int gen);
 
-  void normalize_weights(std::vector<BankedParticle> &next_gen);
-  void perform_regional_cancellation(std::vector<uint64_t> &nums,
-                                     std::vector<BankedParticle> &bank);
+  void normalize_weights(std::vector<BankedParticle>& next_gen);
+  void perform_regional_cancellation(std::vector<uint64_t>& nums,
+                                     std::vector<BankedParticle>& bank);
 
   void power_iteration(bool sample_noise);
   void pi_generation_output();

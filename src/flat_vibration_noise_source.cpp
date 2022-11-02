@@ -143,20 +143,20 @@ double FlatVibrationNoiseSource::get_nuclide_concentration(
 
 double FlatVibrationNoiseSource::Et(double x, double E) const {
   if (x < x0_) {
-    MaterialHelper mat_neg(material_neg_, E);
+    MaterialHelper mat_neg(material_neg_.get(), E);
     return mat_neg.Et(E);
   } else {
-    MaterialHelper mat_pos(material_pos_, E);
+    MaterialHelper mat_pos(material_pos_.get(), E);
     return mat_pos.Et(E);
   }
 }
 
 double FlatVibrationNoiseSource::Delta_Et(double E) const {
   // Make material helpers and evaluate XS
-  MaterialHelper mat_neg(material_neg_, E);
+  MaterialHelper mat_neg(material_neg_.get(), E);
   double xs_neg = mat_neg.Et(E);
 
-  MaterialHelper mat_pos(material_pos_, E);
+  MaterialHelper mat_pos(material_pos_.get(), E);
   double xs_pos = mat_pos.Et(E);
 
   return xs_neg - xs_pos;

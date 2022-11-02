@@ -68,7 +68,7 @@ class MeshTally {
   };
 
   MeshTally(Position low, Position hi, uint64_t nx, uint64_t ny, uint64_t nz,
-            const std::vector<double> &ebounds, std::string fname);
+            const std::vector<double>& ebounds, std::string fname);
   virtual ~MeshTally() = default;
 
   void set_net_weight(double W);

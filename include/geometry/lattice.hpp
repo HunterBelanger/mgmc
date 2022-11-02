@@ -69,15 +69,10 @@ class Lattice {
   // Finds lattice element containing given position, transforms
   // coordinated to that elements frame, then asks that universe
   // for the cell of the local coordiante given.
-  virtual std::shared_ptr<Cell> get_cell(Position r, Direction u,
-                                         int32_t on_surf) const = 0;
+  virtual Cell* get_cell(Position r, Direction u, int32_t on_surf) const = 0;
 
-  virtual Cell* get_cell_naked_ptr(Position r, Direction u,
-                                   int32_t on_surf) const = 0;
-
-  virtual std::shared_ptr<Cell> get_cell(std::vector<GeoLilyPad>& stack,
-                                         Position r, Direction u,
-                                         int32_t on_surf) const = 0;
+  virtual Cell* get_cell(std::vector<GeoLilyPad>& stack, Position r,
+                         Direction u, int32_t on_surf) const = 0;
 
   // Given the position in the frame of the lattice (NOT THE FRAME OF THE
   // TILE!), the distance to the edge of the provided tile is returned.

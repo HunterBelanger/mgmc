@@ -62,6 +62,14 @@ struct ScatterInfo {
   bool thermal = false;
 };
 
+struct FissionInfo {
+  double energy = 0.;
+  Direction direction = Direction(1., 0., 0.);
+  bool delayed = false;
+  double precursor_decay_constant = 0.;
+  uint32_t delayed_family = 0;
+};
+
 // This is a general nuclide interface, to permit use with
 // the same transport and simulation classes, regardless of
 // the energy mode being used.
@@ -83,25 +91,26 @@ class Nuclide {
   virtual std::size_t num_delayed_groups() const = 0;
   virtual double delayed_group_constant(std::size_t g) const = 0;
   virtual double delayed_group_probability(std::size_t g, double E) const = 0;
-  virtual ScatterInfo sample_scatter(double Ein, const Direction &u,
-                                     std::size_t i, pcg32 &rng) const = 0;
-  virtual ScatterInfo sample_prompt_fission(double Ein, const Direction &u,
+  virtual ScatterInfo sample_scatter(double Ein, const Direction& u,
+                                     std::size_t i, pcg32& rng) const = 0;
+  virtual ScatterInfo sample_scatter_mt(uint32_t mt, double Ein,
+                                        const Direction& u, std::size_t i,
+                                        pcg32& rng) const = 0;
+  virtual FissionInfo sample_fission(double Ein, const Direction& u,
+                                     std::size_t i, double Pdelayed,
+                                     pcg32& rng) const = 0;
+  virtual FissionInfo sample_prompt_fission(double Ein, const Direction& u,
                                             std::size_t i,
-                                            pcg32 &rng) const = 0;
+                                            pcg32& rng) const = 0;
   // Samples an energy and direction from the delayed spectrum of delayed family
   // g.
-  virtual ScatterInfo sample_delayed_fission(double Ein, const Direction &u,
+  virtual FissionInfo sample_delayed_fission(double Ein, const Direction& u,
                                              std::size_t g,
-                                             pcg32 &rng) const = 0;
+                                             pcg32& rng) const = 0;
 
   virtual double max_energy() const = 0;
   virtual double min_energy() const = 0;
   virtual double speed(double E, std::size_t i) const = 0;
-
-  virtual BankedParticle make_fission_neutron(
-      Particle &p, std::size_t energy_index, double P_del,
-      std::optional<double> w_noise = std::nullopt) const = 0;
-  virtual void scatter(Particle &p, std::size_t energy_index) const = 0;
 
   uint32_t id() const { return id_; }
 

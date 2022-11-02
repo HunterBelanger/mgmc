@@ -42,16 +42,13 @@
 class CellSearchMesh {
  public:
   CellSearchMesh(
-      Position low, Position hi, const std::array<uint32_t, 3> &shape,
-      const std::vector<std::vector<std::shared_ptr<Cell>>> &elements);
+      Position low, Position hi, const std::array<uint32_t, 3>& shape,
+      const std::vector<std::vector<std::shared_ptr<Cell>>>& elements);
 
-  bool is_inside(const Position &r, const Direction &u) const;
-  std::size_t index(const Position &r, const Direction &u) const;
-  const std::vector<std::shared_ptr<Cell>> &index_cells(std::size_t i) const;
-  std::shared_ptr<Cell> find_cell(const Position &r, const Direction &u,
-                                  int32_t on_surf) const;
-  Cell *find_cell_naked_ptr(const Position &r, const Direction &u,
-                            int32_t on_surf) const;
+  bool is_inside(const Position& r, const Direction& u) const;
+  std::size_t index(const Position& r, const Direction& u) const;
+  const std::vector<std::shared_ptr<Cell>>& index_cells(std::size_t i) const;
+  Cell* find_cell(const Position& r, const Direction& u, int32_t on_surf) const;
   std::size_t size() const { return elements_.size(); }
 
  private:
@@ -60,9 +57,9 @@ class CellSearchMesh {
   Position r_low, r_hi;
   std::vector<std::vector<std::shared_ptr<Cell>>> elements_;
 
-  std::array<int32_t, 3> get_tile(const Position &r, const Direction &u) const;
+  std::array<int32_t, 3> get_tile(const Position& r, const Direction& u) const;
 };
 
-std::shared_ptr<CellSearchMesh> make_cell_search_mesh(const YAML::Node &node);
+std::shared_ptr<CellSearchMesh> make_cell_search_mesh(const YAML::Node& node);
 
 #endif

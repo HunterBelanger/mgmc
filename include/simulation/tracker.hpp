@@ -77,7 +77,7 @@ class Tracker {
     r_ = r_ + d * u_;
 
     // Go update positions inside tree
-    for (auto &leaf : tree) {
+    for (auto& leaf : tree) {
       leaf.r_local = leaf.r_local + d * u_;
     }
 
@@ -87,8 +87,8 @@ class Tracker {
   int32_t surface_token() const { return surface_token_; }
   void set_surface_token(int32_t st) { surface_token_ = st; }
 
-  const std::shared_ptr<Material> &material() { return current_mat; }
-  const std::shared_ptr<Cell> &cell() { return current_cell; }
+  Material* material() { return current_mat; }
+  Cell* cell() { return current_cell; }
 
   geometry::Boundary boundary() const {
     return geometry::get_boundary(r_, u_, surface_token_);
@@ -106,7 +106,7 @@ class Tracker {
       int32_t token = bound.token;
 
       // Go up the entire tree
-      for (const auto &pad : tree) {
+      for (const auto& pad : tree) {
         if (pad.type == GeoLilyPad::PadType::Lattice) {
           auto lat_id = lattice_id_to_indx[pad.id];
           double d = geometry::lattices[lat_id]->distance_to_tile_boundary(
@@ -183,16 +183,16 @@ class Tracker {
     for (auto it = tree.begin(); it != tree.end(); it++) {
       if (it->type == GeoLilyPad::PadType::Cell) {
         auto cell_indx = cell_id_to_indx[it->id];
-        const auto &cell = geometry::cells[cell_indx];
+        const auto& cell = geometry::cells[cell_indx];
         if (!cell->is_inside(it->r_local, u_, surface_token_)) {
           if (cell->neighbors().size() > 0) {
             // We have a neighbors list ! Lets try to use that
-            for (const auto &neighbor : cell->neighbors()) {
+            for (const auto& neighbor : cell->neighbors()) {
               // Check if we are inside this neighbor
               if (neighbor->is_inside(it->r_local, u_, surface_token_)) {
                 // Update the GeoLilyPad to be this cell
                 it->id = neighbor->id();
-                current_cell = neighbor;
+                current_cell = neighbor.get();
                 current_mat = current_cell->material();
                 return;
               }
@@ -204,7 +204,7 @@ class Tracker {
         }
       } else if (it->type == GeoLilyPad::PadType::Lattice) {
         auto lat_indx = lattice_id_to_indx[it->id];
-        const auto &lat = geometry::lattices[lat_indx];
+        const auto& lat = geometry::lattices[lat_indx];
         auto tile = lat->get_tile(it->r_local, u_);
         // Check if tile has changed
         if (it->tile[0] != tile[0] || it->tile[1] != tile[1] ||
@@ -225,7 +225,7 @@ class Tracker {
 
       // Now start at the last element, and get the new position
       auto uni_indx = universe_id_to_indx[tree.back().id];
-      const auto &uni = geometry::universes[uni_indx];
+      const auto& uni = geometry::universes[uni_indx];
       Position r_local = tree.back().r_local;
       tree.pop_back();
       current_cell = uni->get_cell(tree, r_local, u_, surface_token_);
@@ -240,13 +240,13 @@ class Tracker {
            r_.z() == tree.front().r_local.z();
   }
 
-  void do_reflection(Particle &p, geometry::Boundary boundary) {
+  void do_reflection(Particle& p, geometry::Boundary boundary) {
     // Get the surface first
     if (boundary.surface_index < 0) {
       fatal_error("Bad surface index in Tracker::do_reflection", __FILE__,
                   __LINE__);
     }
-    const std::shared_ptr<Surface> &surface =
+    const std::shared_ptr<Surface>& surface =
         geometry::surfaces[boundary.surface_index];
 
     int32_t token = geometry::id_to_token(surface->id());
@@ -292,8 +292,8 @@ class Tracker {
   Position r_;
   Direction u_;
   std::vector<GeoLilyPad> tree;
-  std::shared_ptr<Material> current_mat = nullptr;
-  std::shared_ptr<Cell> current_cell = nullptr;
+  Material* current_mat = nullptr;
+  Cell* current_cell = nullptr;
   // Token for current surface which particle is on. The index for the
   // surface in the surface vector is std::abs(token) - 1. Token is NOT
   // the surface id !!

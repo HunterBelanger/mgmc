@@ -39,7 +39,7 @@ Plane::Plane(double A_, double B_, double C_, double D_, BoundaryType bound,
              uint32_t i_id, std::string i_name)
     : Surface{bound, i_id, i_name}, A{A_}, B{B_}, C{C_}, D{D_} {}
 
-int Plane::sign(const Position &r, const Direction &u) const {
+int Plane::sign(const Position& r, const Direction& u) const {
   double eval = A * r.x() + B * r.y() + C * r.z() - D;
   if (eval > SURFACE_COINCIDENT)
     return 1;
@@ -53,7 +53,7 @@ int Plane::sign(const Position &r, const Direction &u) const {
   }
 }
 
-double Plane::distance(const Position &r, const Direction &u,
+double Plane::distance(const Position& r, const Direction& u,
                        bool on_surf) const {
   double num = D - A * r.x() - B * r.y() - C * r.z();
   double denom = A * u.x() + B * u.y() + C * u.z();
@@ -66,7 +66,7 @@ double Plane::distance(const Position &r, const Direction &u,
     return d;
 }
 
-Direction Plane::norm(const Position & /*r*/) const { return {A, B, C}; }
+Direction Plane::norm(const Position& /*r*/) const { return {A, B, C}; }
 
 //===========================================================================
 // Non-Member Functions

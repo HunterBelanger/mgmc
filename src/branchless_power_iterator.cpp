@@ -38,7 +38,7 @@
 #include <ios>
 #include <iostream>
 #include <numeric>
-#include <simulation/power_iterator.hpp>
+#include <simulation/branchless_power_iterator.hpp>
 #include <sstream>
 #include <utils/error.hpp>
 #include <utils/mpi.hpp>
@@ -48,7 +48,7 @@
 #include <utils/timer.hpp>
 #include <vector>
 
-void PowerIterator::initialize() {
+void BranchlessPowerIterator::initialize() {
   // If not using source file
   if (settings::load_source_file == false) {
     sample_source_from_sources();
@@ -58,7 +58,7 @@ void PowerIterator::initialize() {
   }
 }
 
-void PowerIterator::load_source_from_file() {
+void BranchlessPowerIterator::load_source_from_file() {
   std::shared_ptr<Output> out = Output::instance();
 
   // Load source file
@@ -114,7 +114,7 @@ void PowerIterator::load_source_from_file() {
   tallies->set_total_weight(std::round(tot_wgt));
 }
 
-void PowerIterator::sample_source_from_sources() {
+void BranchlessPowerIterator::sample_source_from_sources() {
   std::shared_ptr<Output> out = Output::instance();
   out->write(" Generating source particles...\n");
   // Calculate the base number of particles per node to run
@@ -145,7 +145,7 @@ void PowerIterator::sample_source_from_sources() {
                                               mpi::node_nparticles.end(), 0);
 }
 
-void PowerIterator::print_header() {
+void BranchlessPowerIterator::print_header() {
   std::shared_ptr<Output> out = Output::instance();
   out->write("\n");
   std::stringstream output;
@@ -192,7 +192,7 @@ void PowerIterator::print_header() {
   out->write(output.str());
 }
 
-void PowerIterator::generation_output() {
+void BranchlessPowerIterator::generation_output() {
   std::shared_ptr<Output> out = Output::instance();
   std::stringstream output;
 
@@ -262,9 +262,9 @@ void PowerIterator::generation_output() {
   out->write(output.str());
 }
 
-void PowerIterator::run() {
+void BranchlessPowerIterator::run() {
   std::shared_ptr<Output> out = Output::instance();
-  out->write(" Running k Eigenvalue Problem...\n");
+  out->write(" Running Branchless k Eigenvalue Problem...\n");
   out->write(" NPARTICLES: " + std::to_string(settings::nparticles) + ", ");
   out->write(" NGENERATIONS: " + std::to_string(settings::ngenerations) + ",");
   out->write(" NIGNORED: " + std::to_string(settings::nignored) + "\n");
@@ -307,6 +307,10 @@ void PowerIterator::run() {
     // Calculate net positive and negative weight
     if (mpi::rank == 0) normalize_weights(next_gen);
 
+    // Comb particles
+    if (settings::branchless_combing && mpi::rank == 0)
+      comb_particles(next_gen);
+
     // Compute pair distance squared
     if (settings::pair_distance_sqrd && mpi::rank == 0) {
       r_sqrd = compute_pair_dist_sqrd(next_gen);
@@ -330,11 +334,6 @@ void PowerIterator::run() {
 
     // Do all Post-Cancelation entropy calculations
     compute_post_cancellation_entropy(next_gen);
-
-    // Compute pair distance squared
-    if (settings::pair_distance_sqrd) {
-      r_sqrd = compute_pair_dist_sqrd(next_gen);
-    }
 
     // Clear and switch particle banks
     bank.clear();
@@ -424,7 +423,8 @@ void PowerIterator::run() {
   if (settings::save_source) write_source(bank, settings::source_file_name);
 }
 
-void PowerIterator::normalize_weights(std::vector<BankedParticle>& next_gen) {
+void BranchlessPowerIterator::normalize_weights(
+    std::vector<BankedParticle>& next_gen) {
   double W = 0.;
   double W_neg = 0.;
   double W_pos = 0.;
@@ -463,7 +463,67 @@ void PowerIterator::normalize_weights(std::vector<BankedParticle>& next_gen) {
   Wneg = std::round(W_neg);
 }
 
-void PowerIterator::compute_pre_cancellation_entropy(
+void BranchlessPowerIterator::comb_particles(
+    std::vector<BankedParticle>& next_gen) {
+  std::vector<BankedParticle> positive_particles;
+  std::vector<BankedParticle> negative_particles;
+  positive_particles.reserve(next_gen.size());
+  negative_particles.reserve(next_gen.size() / 3);
+  double Wpos = 0.;
+  double Wneg = 0.;
+
+  // Sort positive and negative particles into different buffers
+  for (std::size_t i = 0; i < next_gen.size(); i++) {
+    if (next_gen[i].wgt > 0.) {
+      Wpos += next_gen[i].wgt;
+      positive_particles.push_back(next_gen[i]);
+    } else {
+      Wneg += next_gen[i].wgt;
+      negative_particles.push_back(next_gen[i]);
+    }
+  }
+  next_gen.clear();
+
+  // Determine how many positive and negative
+  std::size_t Npos = std::ceil(Wpos);
+  std::size_t Nneg = std::ceil(std::abs(Wneg));
+  next_gen.reserve(Npos + Nneg);
+
+  // Comb Positive particles
+  std::shuffle(positive_particles.begin(), positive_particles.end(),
+               settings::rng);
+  double avg_pos_wgt = Wpos / static_cast<double>(Npos);
+  double comb_pos = RNG::rand(settings::rng) * avg_pos_wgt;
+  double current_particle = 0.;
+  for (std::size_t i = 0; i < positive_particles.size(); i++) {
+    current_particle += positive_particles[i].wgt;
+    while (comb_pos < current_particle) {
+      next_gen.push_back(positive_particles[i]);
+      next_gen.back().wgt = avg_pos_wgt;
+      comb_pos += avg_pos_wgt;
+    }
+  }
+
+  // Comb Negative Particles
+  std::shuffle(negative_particles.begin(), negative_particles.end(),
+               settings::rng);
+  double avg_neg_wgt = std::abs(Wneg) / static_cast<double>(Npos);
+  comb_pos = RNG::rand(settings::rng) * avg_neg_wgt;
+  current_particle = 0.;
+  for (std::size_t i = 0; i < negative_particles.size(); i++) {
+    current_particle -= negative_particles[i].wgt;
+    while (comb_pos < current_particle) {
+      next_gen.push_back(positive_particles[i]);
+      next_gen.back().wgt = -avg_neg_wgt;
+      comb_pos += avg_neg_wgt;
+    }
+  }
+
+  // Reshuffle full buffer
+  std::shuffle(next_gen.begin(), next_gen.end(), settings::rng);
+}
+
+void BranchlessPowerIterator::compute_pre_cancellation_entropy(
     std::vector<BankedParticle>& next_gen) {
   if (t_pre_entropy && settings::regional_cancellation) {
     for (size_t i = 0; i < next_gen.size(); i++) {
@@ -482,7 +542,7 @@ void PowerIterator::compute_pre_cancellation_entropy(
   }
 }
 
-void PowerIterator::compute_post_cancellation_entropy(
+void BranchlessPowerIterator::compute_post_cancellation_entropy(
     std::vector<BankedParticle>& next_gen) {
   if (t_pre_entropy && settings::regional_cancellation) {
     for (size_t i = 0; i < next_gen.size(); i++) {
@@ -496,7 +556,7 @@ void PowerIterator::compute_post_cancellation_entropy(
   }
 }
 
-double PowerIterator::compute_pair_dist_sqrd(
+double BranchlessPowerIterator::compute_pair_dist_sqrd(
     const std::vector<BankedParticle>& next_gen) {
   double Ntot = 0.;
   double r_sqr = 0.;
@@ -517,7 +577,7 @@ double PowerIterator::compute_pair_dist_sqrd(
   return r_sqr;
 }
 
-void PowerIterator::zero_entropy() {
+void BranchlessPowerIterator::zero_entropy() {
   if (p_pre_entropy) {
     p_pre_entropy->zero();
   }
@@ -543,8 +603,8 @@ void PowerIterator::zero_entropy() {
   }
 }
 
-void PowerIterator::write_source(std::vector<Particle>& bank,
-                                 std::string source_fname) {
+void BranchlessPowerIterator::write_source(std::vector<Particle>& bank,
+                                           std::string source_fname) {
   // Convert the vector of particles to a vector of BakedParticle
   std::vector<BankedParticle> tmp_bank(bank.size());
   for (std::size_t i = 0; i < bank.size(); i++) {
@@ -582,7 +642,7 @@ void PowerIterator::write_source(std::vector<Particle>& bank,
   }
 }
 
-void PowerIterator::premature_kill() {
+void BranchlessPowerIterator::premature_kill() {
   // See if the user really wants to kill the program
   std::shared_ptr<Output> out = Output::instance();
   bool user_said_kill = false;
@@ -610,7 +670,7 @@ void PowerIterator::premature_kill() {
   std::cout << "\n";
 }
 
-bool PowerIterator::out_of_time(int gen) {
+bool BranchlessPowerIterator::out_of_time(int gen) {
   // Get the average time per generation
   double T_avg = simulation_timer.elapsed_time() / static_cast<double>(gen);
 
@@ -629,7 +689,7 @@ bool PowerIterator::out_of_time(int gen) {
   return false;
 }
 
-void PowerIterator::check_time(int gen) {
+void BranchlessPowerIterator::check_time(int gen) {
   bool should_stop_now = false;
   if (mpi::rank == 0) should_stop_now = out_of_time(gen);
 
@@ -642,7 +702,7 @@ void PowerIterator::check_time(int gen) {
   }
 }
 
-void PowerIterator::perform_regional_cancellation(
+void BranchlessPowerIterator::perform_regional_cancellation(
     std::vector<BankedParticle>& next_gen) {
   // Only perform cancellation if we are master !!
   std::size_t n_lost_boys = 0;

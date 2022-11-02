@@ -32,6 +32,7 @@
  * termes.
  *============================================================================*/
 #include <complex>
+#include <functional>
 #include <materials/legendre_distribution.hpp>
 #include <materials/mg_nuclide.hpp>
 #include <sstream>
@@ -440,7 +441,13 @@ ScatterInfo MGNuclide::sample_scatter(double /*Ein*/, const Direction& u,
   return info;
 }
 
-ScatterInfo MGNuclide::sample_prompt_fission(double /*Ein*/, const Direction& u,
+ScatterInfo MGNuclide::sample_scatter_mt(uint32_t /*mt*/, double Ein,
+                                         const Direction& u, std::size_t i,
+                                         pcg32& rng) const {
+  return this->sample_scatter(Ein, u, i, rng);
+}
+
+FissionInfo MGNuclide::sample_prompt_fission(double /*Ein*/, const Direction& u,
                                              std::size_t i, pcg32& rng) const {
   std::function<double()> rngfunc = std::bind(RNG::rand, std::ref(rng));
 
@@ -456,101 +463,61 @@ ScatterInfo MGNuclide::sample_prompt_fission(double /*Ein*/, const Direction& u,
   double phi = 2. * PI * RNG::rand(rng);
   Direction u_out = rotate_direction(u, mu, phi);
 
-  ScatterInfo info;
+  FissionInfo info;
   info.energy = E_out;
   info.direction = u_out;
-  info.mt = 18;
+  info.delayed = false;
+  info.precursor_decay_constant = 0.;
+  info.delayed_family = 0;
   return info;
 }
 
-ScatterInfo MGNuclide::sample_delayed_fission(double Ein, const Direction& u,
+FissionInfo MGNuclide::sample_delayed_fission(double Ein, const Direction& u,
                                               std::size_t g, pcg32& rng) const {
-  return sample_prompt_fission(Ein, u, g, rng);
+  FissionInfo info = sample_prompt_fission(Ein, u, g, rng);
+  info.delayed_family = g;
+  info.precursor_decay_constant = this->delayed_group_decay_constants[g];
+  return info;
 }
 
-BankedParticle MGNuclide::make_fission_neutron(
-    Particle& p, std::size_t energy_index, double P_del,
-    std::optional<double> w_noise) const {
-  std::function<double()> rngfunc = std::bind(RNG::rand, std::ref(p.rng));
+FissionInfo MGNuclide::sample_fission(double /*Ein*/, const Direction& u,
+                                      std::size_t energy_index, double Pdelayed,
+                                      pcg32& rng) const {
+  std::function<double()> rngfunc = std::bind(RNG::rand, std::ref(rng));
+
+  FissionInfo info;
 
   // First we sample the the energy index
-  int ei = RNG::discrete(p.rng, chi_[energy_index]);
+  int ei = RNG::discrete(rng, chi_[energy_index]);
 
   // Put fission energy in middle of sampled bin
   double E_out =
       0.5 * (settings::energy_bounds[ei] + settings::energy_bounds[ei + 1]);
 
   // Sample direction from mu, and random phi about z-axis
-  double mu = 2. * RNG::rand(p.rng) - 1.;
-  double phi = 2. * PI * RNG::rand(p.rng);
-  Direction u = rotate_direction(p.u(), mu, phi);
+  double mu = 2. * RNG::rand(rng) - 1.;
+  double phi = 2. * PI * RNG::rand(rng);
+  Direction uout = rotate_direction(u, mu, phi);
 
-  // Define weights to be used (will be changed if noise = true).
-  double wgt = p.wgt() > 0. ? 1. : -1.;
-  double wgt2 = 0.;
+  info.energy = E_out;
+  info.direction = uout;
+  info.delayed = false;
+  info.delayed_family = 0;
+  info.precursor_decay_constant = 0.;
 
-  // If we are running in noise mode or sampling the noise source from fission,
-  // we need to treat the weights differently.
-  if (w_noise) {
-    // First, we set wgt and wgt to the be the current weight of the
-    // parent particle.
-    wgt = p.wgt();
-    wgt2 = p.wgt2();
+  // Next, we need to see if this is a delayed neutron or not.
+  if (rngfunc() < Pdelayed) {
+    // We have a delayed neutron. We now need to select a delayed group
+    // and get the group decay constant.
+    int dgrp = RNG::discrete(rng, P_delayed_group);
+    double lambda = delayed_group_decay_constants[dgrp];
 
-    // Next, we need to see if this is a delayed neutron or not.
-    if (rngfunc() < P_del) {
-      // We have a delayed neutron. We now need to select a delayed group
-      // and get the group decay constant.
-      int dgrp = RNG::discrete(p.rng, P_delayed_group);
-      double lambda = delayed_group_decay_constants[dgrp];
-
-      // We must now modify this neutron's weight
-      std::complex<double> weight{wgt, wgt2};
-      double denom = (lambda * lambda) + (w_noise.value() * w_noise.value());
-      std::complex<double> mult{lambda * lambda / denom,
-                                -lambda * w_noise.value() / denom};
-      weight *= mult;
-      wgt = weight.real();
-      wgt2 = weight.imag();
-    }
+    info.delayed = true;
+    info.delayed_family = dgrp;
+    info.precursor_decay_constant = lambda;
   }
 
-  // Create and return the neutron
-  BankedParticle p_new{p.r(),
-                       u,
-                       E_out,
-                       wgt,
-                       wgt2,
-                       p.history_id(),
-                       p.daughter_counter(),
-                       p.previous_collision_virtual(),
-                       p.previous_r(),
-                       p.previous_u(),
-                       p.previous_E(),
-                       p.E(),
-                       p.Esmp()};
-
-  return p_new;
-}
-
-void MGNuclide::scatter(Particle& p, std::size_t energy_index) const {
-  // Change particle energy
-  int ei = RNG::discrete(p.rng, Ps_[energy_index]);
-  double E_out =
-      0.5 * (settings::energy_bounds[ei] + settings::energy_bounds[ei + 1]);
-
-  // Change direction
-  double mu = angle_dists_[energy_index][ei].sample_mu(p.rng);
-  double phi = 2. * PI * RNG::rand(p.rng);
-  Direction u_out = rotate_direction(p.u(), mu, phi);
-
-  // Multiply weight components, in case we have a yield which isn't
-  // 1 for this scattering chanel.
-  p.set_weight(p.wgt() * mult_[energy_index][ei]);
-  p.set_weight2(p.wgt2() * mult_[energy_index][ei]);
-
-  p.set_energy(E_out);
-  p.set_direction(u_out);
+  return info;
 }
 
 void get_legendre_moment(

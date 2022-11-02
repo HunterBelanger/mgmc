@@ -138,6 +138,11 @@ void slice_plotter(YAML::Node plot_node) {
     fatal_error(mssg, __FILE__, __LINE__);
   }
 
+  if (height <= 0. || width <= 0.) {
+    std::string mssg = "Plot heigh and width must be greater than zero.";
+    fatal_error(mssg, __FILE__, __LINE__);
+  }
+
   // Get origin
   double x = 0, y = 0, z = 0;
   if (plot_node["origin"] && plot_node["origin"].IsSequence()) {

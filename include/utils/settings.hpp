@@ -37,10 +37,22 @@
 #include <pcg_random.hpp>
 #include <string>
 #include <utils/timer.hpp>
+#include <vector>
 
 namespace settings {
-enum class SimulationMode { K_EIGENVALUE, FIXED_SOURCE, NOISE };
-enum class TrackingMode { SURFACE_TRACKING, DELTA_TRACKING, CARTER_TRACKING };
+enum class SimulationMode {
+  K_EIGENVALUE,
+  BRANCHLESS_K_EIGENVALUE,
+  FIXED_SOURCE,
+  MODIFIED_FIXED_SOURCE,
+  NOISE
+};
+enum class TrackingMode {
+  SURFACE_TRACKING,
+  DELTA_TRACKING,
+  IMPLICIT_LEAKAGE_DELTA_TRACKING,
+  CARTER_TRACKING
+};
 enum class EnergyMode { CE, MG };
 
 extern int nparticles;
@@ -75,6 +87,8 @@ extern double keff;
 
 extern bool converged;
 
+extern bool pair_distance_sqrd;
+
 extern bool regional_cancellation;
 extern bool regional_cancellation_noise;
 extern bool inner_generations;
@@ -82,6 +96,11 @@ extern bool normalize_noise_source;
 extern bool rng_stride_warnings;
 extern bool save_source;
 extern bool load_source_file;
+
+// Branchless PI settings
+extern bool branchless_splitting;
+extern bool branchless_combing;
+extern bool branchless_material;
 
 // Energy bounds for multi-group mode
 extern std::vector<double> energy_bounds;

@@ -44,11 +44,11 @@ class SourceMeshTally : public MeshTally {
   enum class Quantity { Source, RealSource, ImagSource };
 
   SourceMeshTally(Position low, Position hi, uint64_t nx, uint64_t ny,
-                  uint64_t nz, const std::vector<double> &ebounds, Quantity q,
+                  uint64_t nz, const std::vector<double>& ebounds, Quantity q,
                   std::string fname)
       : MeshTally(low, hi, nx, ny, nz, ebounds, fname), quantity(q) {}
 
-  void score_source(const BankedParticle &p);
+  void score_source(const BankedParticle& p);
 
   bool noise_like_score() const {
     if (quantity == Quantity::RealSource || quantity == Quantity::ImagSource)
@@ -62,6 +62,6 @@ class SourceMeshTally : public MeshTally {
   std::string quantity_str() const override final;
 };
 
-std::shared_ptr<SourceMeshTally> make_source_mesh_tally(const YAML::Node &node);
+std::shared_ptr<SourceMeshTally> make_source_mesh_tally(const YAML::Node& node);
 
 #endif

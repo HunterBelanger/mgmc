@@ -50,15 +50,15 @@ class FlatVibrationNoiseSource : public VibrationNoiseSource {
                            std::shared_ptr<Material> mat_neg,
                            double angular_frequency);
 
-  bool is_inside(const Position &r) const override final;
+  bool is_inside(const Position& r) const override final;
 
-  std::complex<double> dEt(const Position &r, double E,
+  std::complex<double> dEt(const Position& r, double E,
                            double w) const override final;
 
-  std::complex<double> dEt_Et(const Position &r, double E,
+  std::complex<double> dEt_Et(const Position& r, double E,
                               double w) const override final;
 
-  std::complex<double> dN(const Position &r, uint32_t nuclide_id,
+  std::complex<double> dN(const Position& r, uint32_t nuclide_id,
                           double w) const override final;
 
  private:
@@ -79,17 +79,17 @@ class FlatVibrationNoiseSource : public VibrationNoiseSource {
   std::complex<double> C_R(uint32_t n, double x) const;
   std::complex<double> C_L(uint32_t n, double x) const;
 
-  double get_x(const Position &r) const;
+  double get_x(const Position& r) const;
 
   bool negative_material(double x) const;
 
-  double get_nuclide_concentration(const Material &mat,
+  double get_nuclide_concentration(const Material& mat,
                                    uint32_t nuclide_id) const;
 
   static constexpr std::complex<double> i{0., 1.};
 };
 
 std::shared_ptr<VibrationNoiseSource> make_flat_vibration_noise_source(
-    const YAML::Node &snode);
+    const YAML::Node& snode);
 
 #endif

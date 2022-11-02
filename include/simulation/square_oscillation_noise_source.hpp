@@ -45,23 +45,23 @@ class SquareOscillationNoiseSource : public OscillationNoiseSource {
                                double eps_fis, double eps_sct,
                                double angular_frequency);
 
-  bool is_inside(const Position &r) const override final;
-  std::complex<double> dEt(const Position &r, double E,
+  bool is_inside(const Position& r) const override final;
+  std::complex<double> dEt(const Position& r, double E,
                            double w) const override final;
-  std::complex<double> dEf(const Position &r, double E,
+  std::complex<double> dEf(const Position& r, double E,
                            double w) const override final;
-  std::complex<double> dEelastic(const Position &r, double E,
+  std::complex<double> dEelastic(const Position& r, double E,
                                  double w) const override final;
-  std::complex<double> dEmt(uint32_t mt, const Position &r, double E,
+  std::complex<double> dEmt(uint32_t mt, const Position& r, double E,
                             double w) const override final;
 
-  std::complex<double> dEt_Et(const Position &r, double E,
+  std::complex<double> dEt_Et(const Position& r, double E,
                               double w) const override final;
-  std::complex<double> dEf_Ef(const Position &r, double E,
+  std::complex<double> dEf_Ef(const Position& r, double E,
                               double w) const override final;
-  std::complex<double> dEelastic_Eelastic(const Position &r, double E,
+  std::complex<double> dEelastic_Eelastic(const Position& r, double E,
                                           double w) const override final;
-  std::complex<double> dEmt_Emt(uint32_t mt, const Position &r, double E,
+  std::complex<double> dEmt_Emt(uint32_t mt, const Position& r, double E,
                                 double w) const override final;
 
  private:
@@ -73,6 +73,6 @@ class SquareOscillationNoiseSource : public OscillationNoiseSource {
 };
 
 std::shared_ptr<OscillationNoiseSource> make_square_oscillation_noise_source(
-    const YAML::Node &snode);
+    const YAML::Node& snode);
 
 #endif

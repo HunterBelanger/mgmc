@@ -81,22 +81,17 @@ struct Boundary {
 
 //==========================================================================
 // Functions
-std::shared_ptr<Cell> get_cell(const Position &r, const Direction &u,
-                               int32_t on_surf = 0);
+Cell* get_cell(const Position& r, const Direction& u, int32_t on_surf = 0);
 
-Cell *get_cell_naked_ptr(const Position &r, const Direction &u,
-                         int32_t on_surf = 0);
+Cell* get_cell(std::vector<GeoLilyPad>& stack, const Position& r,
+               const Direction& u, int32_t on_surf = 0);
 
-std::shared_ptr<Cell> get_cell(std::vector<GeoLilyPad> &stack,
-                               const Position &r, const Direction &u,
-                               int32_t on_surf = 0);
-
-Boundary get_boundary(const Position &r, const Direction &u,
+Boundary get_boundary(const Position& r, const Direction& u,
                       int32_t on_surf = 0);
 
 int32_t id_to_token(int32_t id);
 
-void do_reflection(Particle &p, Boundary boundary);
+void do_reflection(Particle& p, Boundary boundary);
 
 }  // namespace geometry
 

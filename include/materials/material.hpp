@@ -60,7 +60,7 @@ class Material : public std::enable_shared_from_this<Material> {
 
   double max_energy() const {
     double max = 10000.;
-    for (const auto &comp : composition_) {
+    for (const auto& comp : composition_) {
       if (comp.nuclide->max_energy() < max) {
         max = comp.nuclide->max_energy();
       }
@@ -71,7 +71,7 @@ class Material : public std::enable_shared_from_this<Material> {
 
   double min_energy() const {
     double min = 0.;
-    for (const auto &comp : composition_) {
+    for (const auto& comp : composition_) {
       if (comp.nuclide->min_energy() > min) {
         min = comp.nuclide->min_energy();
       }
@@ -80,11 +80,11 @@ class Material : public std::enable_shared_from_this<Material> {
     return min;
   }
 
-  const std::vector<Component> &composition() const { return composition_; }
-  const std::string &get_name() const { return name_; }
+  const std::vector<Component>& composition() const { return composition_; }
+  const std::string& get_name() const { return name_; }
   uint32_t id() const { return id_; }
   bool fissile() const {
-    for (const auto &comp : composition_) {
+    for (const auto& comp : composition_) {
       if (comp.nuclide->fissile()) return true;
     }
     return false;
@@ -95,11 +95,9 @@ class Material : public std::enable_shared_from_this<Material> {
   uint32_t id_;
   std::string name_;
 
-  friend void make_material(const YAML::Node &mat, const YAML::Node &xsdir,
-                            bool plotting_mode);
+  friend void make_material(const YAML::Node& mat, bool plotting_mode);
 };
 
-void make_material(const YAML::Node &mat, const YAML::Node &xsdir,
-                   bool plotting_mode);
+void make_material(const YAML::Node& mat, bool plotting_mode);
 
 #endif

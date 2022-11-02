@@ -48,9 +48,9 @@ class BasicExactMGCancelator : public Cancelator {
   BasicExactMGCancelator(Position low, Position hi, uint32_t Nx, uint32_t Ny,
                          uint32_t Nz, BetaMode beta, bool sobol, uint32_t nsmp);
 
-  bool add_particle(BankedParticle &p) override final;
-  void perform_cancellation(pcg32 &rng) override final;
-  std::vector<BankedParticle> get_new_particles(pcg32 &rng) override final;
+  bool add_particle(BankedParticle& p) override final;
+  void perform_cancellation(pcg32& rng) override final;
+  std::vector<BankedParticle> get_new_particles(pcg32& rng) override final;
   void clear() override final;
 
  private:
@@ -69,14 +69,14 @@ class BasicExactMGCancelator : public Cancelator {
     double sum_c_wgt2 = 0.;
     uint64_t rng_seed_advance = 0;
     bool can_cancel = true;
-    std::vector<BankedParticle *> particles;
+    std::vector<BankedParticle*> particles;
     std::vector<Averages> averages;
   };
 
   struct Key {
     int i, j, k;
 
-    bool operator==(const Key &other) const {
+    bool operator==(const Key& other) const {
       return ((i == other.i) && (j == other.j) && (k == other.k));
     }
   };
@@ -84,7 +84,7 @@ class BasicExactMGCancelator : public Cancelator {
   class KeyHash {
    public:
     static std::array<uint32_t, 3> shape;
-    std::size_t operator()(const Key &key) const {
+    std::size_t operator()(const Key& key) const {
       int int_key = key.k + this->shape[2] * (key.j + this->shape[1] * key.i);
       return std::hash<int>()(int_key);
     }
@@ -95,7 +95,7 @@ class BasicExactMGCancelator : public Cancelator {
   const double dx, dy, dz;
   const BetaMode beta_mode;
   const bool use_sobol;
-  std::unordered_map<Key, std::unordered_map<Material *, CancelBin>, KeyHash>
+  std::unordered_map<Key, std::unordered_map<Material*, CancelBin>, KeyHash>
       bins;
   const uint32_t N_SAMPLES;
   const uint32_t N_MAX_POS = 100;  // Max number of position samples
@@ -103,31 +103,31 @@ class BasicExactMGCancelator : public Cancelator {
   //==========================================================================
   // Private Helper Methods
 
-  void get_averages(const Key &key, Material *mat, CancelBin &bin, pcg32 &rng);
+  void get_averages(const Key& key, Material* mat, CancelBin& bin, pcg32& rng);
 
-  void get_averages_sobol(const Key &key, Material *mat, CancelBin &bin);
+  void get_averages_sobol(const Key& key, Material* mat, CancelBin& bin);
 
-  Material *get_material(const Position &r) const;
+  Material* get_material(const Position& r) const;
 
-  std::optional<Position> sample_position(const Key &key, Material *mat,
-                                          pcg32 &rng) const;
+  std::optional<Position> sample_position(const Key& key, Material* mat,
+                                          pcg32& rng) const;
 
-  std::optional<Position> sample_position_sobol(const Key &key, Material *mat,
-                                                unsigned long long &i) const;
+  std::optional<Position> sample_position_sobol(const Key& key, Material* mat,
+                                                unsigned long long& i) const;
 
-  double get_f(const Position &r, const Position &r_parent, double Esmp) const;
+  double get_f(const Position& r, const Position& r_parent, double Esmp) const;
 
-  double get_min_f(const Key &key, const Position &r_parent, double Esmp) const;
+  double get_min_f(const Key& key, const Position& r_parent, double Esmp) const;
 
-  double get_beta(const Key &key, const CancelBin &bin, std::size_t i,
-                  const Position &r_parent, double Esmp, double wgt,
+  double get_beta(const Key& key, const CancelBin& bin, std::size_t i,
+                  const Position& r_parent, double Esmp, double wgt,
                   bool first_wgt) const;
 
-  void cancel_bin(const Key &key, Material *mat, CancelBin &bin,
+  void cancel_bin(const Key& key, Material* mat, CancelBin& bin,
                   bool first_wgt);
 };
 
 std::shared_ptr<BasicExactMGCancelator> make_basic_exact_mg_cancelator(
-    const YAML::Node &node);
+    const YAML::Node& node);
 
 #endif

@@ -54,7 +54,7 @@ CarterTracker::CarterTracker(std::shared_ptr<Tallies> i_t)
   // Must first create a unionized energy grid. How this is done depends on
   // whether or not we are in continuous energy or multi-group mode.
   if (settings::energy_mode == settings::EnergyMode::CE) {
-    std::string mssg = "Continuous-Energy mode node supported.";
+    std::string mssg = "Continuous-Energy mode not supported.";
     fatal_error(mssg, __FILE__, __LINE__);
   } else {
     // We are in multi-group mode. Here, the energy-bounds are kept in the
@@ -82,9 +82,9 @@ CarterTracker::CarterTracker(std::shared_ptr<Tallies> i_t)
     std::vector<double> maj_xs(egrid.size(), 0.);
 
     // We loop through materials
-    for (const auto &material : materials) {
+    for (const auto& material : materials) {
       // Then we loop through energies
-      MaterialHelper mat(material.second, 1.);
+      MaterialHelper mat(material.second.get(), 1.);
 
       for (uint32_t g = 0; g < settings::ngroups; g++) {
         // Get the energy at the mid-point for the group
@@ -106,8 +106,8 @@ CarterTracker::CarterTracker(std::shared_ptr<Tallies> i_t)
 }
 
 std::vector<BankedParticle> CarterTracker::transport(
-    std::vector<Particle> &bank, bool noise,
-    std::vector<BankedParticle> *noise_bank, const NoiseMaker *noise_maker) {
+    std::vector<Particle>& bank, bool noise,
+    std::vector<BankedParticle>* noise_bank, const NoiseMaker* noise_maker) {
 #ifdef _OPENMP
 #pragma omp parallel
 #endif
@@ -121,7 +121,7 @@ std::vector<BankedParticle> CarterTracker::transport(
 #endif
     for (size_t n = 0; n < bank.size(); n++) {
       // Particle and its personal tracker
-      Particle &p = bank[n];
+      Particle& p = bank[n];
       Tracker trkr(p.r(), p.u());
 
       // If we got lost, kill the particle
@@ -295,7 +295,7 @@ std::vector<BankedParticle> CarterTracker::transport(
   }
 
   if (noise_bank && noise_maker) {
-    for (auto &p : bank) {
+    for (auto& p : bank) {
       p.empty_noise_bank(*noise_bank);
     }
   }

@@ -35,15 +35,77 @@
 #include <omp.h>
 #endif
 
-#include <iostream>
+#include <algorithm>
+#include <iomanip>
+#include <memory>
+#include <materials/material.hpp>
 #include <materials/material_helper.hpp>
-#include <simulation/surface_tracker.hpp>
+#include <simulation/implicit_leakage_delta_tracker.hpp>
 #include <simulation/tracker.hpp>
-#include <string>
 #include <utils/constants.hpp>
 #include <utils/error.hpp>
+#include <utils/output.hpp>
+#include <vector>
 
-std::vector<BankedParticle> SurfaceTracker::transport(
+ImplicitLeakageDeltaTracker::ImplicitLeakageDeltaTracker(
+    std::shared_ptr<Tallies> i_t)
+    : Transporter(i_t), EGrid(nullptr), Emaj(nullptr) {
+  Output::instance()->write(" Finding majorant cross sections.\n");
+  // Must first create a unionized energy grid. How this is done depends on
+  // whether or not we are in continuous energy or multi-group mode.
+  if (settings::energy_mode == settings::EnergyMode::CE) {
+    std::string mssg = "Continuous-Energy mode not supported.";
+    fatal_error(mssg, __FILE__, __LINE__);
+  } else {
+    // We are in multi-group mode. Here, the energy-bounds are kept in the
+    // settings, so we can construct something with that
+
+    std::vector<double> egrid;
+    egrid.push_back(settings::energy_bounds[0]);
+    if (egrid.front() == 0.) egrid.front() = 1.E-11;
+
+    for (size_t i = 1; i < settings::energy_bounds.size() - 1; i++) {
+      egrid.push_back(settings::energy_bounds[i]);
+      egrid.push_back(settings::energy_bounds[i]);
+    }
+
+    egrid.push_back(settings::energy_bounds.back());
+
+    // This now has created the vector egrid which will look something like this
+    // for the case of 5 energy groups.
+    // [0., 1.,   1., 2.,   2., 3.,   3., 4.,   4., 5.]
+    // This works, because the energy of multi-group particles should always be
+    // inbetween the bounds for the group.
+
+    // Now we need to make a vector which will contian the majorant cross
+    // cross sections for each group.
+    std::vector<double> maj_xs(egrid.size(), 0.);
+
+    // We loop through materials
+    for (const auto& material : materials) {
+      // Then we loop through energies
+      MaterialHelper mat(material.second.get(), 1.);
+
+      for (uint32_t g = 0; g < settings::ngroups; g++) {
+        // Get the energy at the mid-point for the group
+        size_t i = g * 2;
+        double Eg = 0.5 * (egrid[i] + egrid[i + 1]);
+
+        double xs = mat.Et(Eg);
+        if (xs > maj_xs[i]) {
+          maj_xs[i] = xs;
+          maj_xs[i + 1] = xs;
+        }
+      }
+    }
+
+    // Now we construct the energy grid and majorant
+    EGrid = std::make_shared<pndl::EnergyGrid>(egrid, settings::ngroups);
+    Emaj = std::make_shared<pndl::CrossSection>(maj_xs, EGrid, 0);
+  }
+}
+
+std::vector<BankedParticle> ImplicitLeakageDeltaTracker::transport(
     std::vector<Particle>& bank, bool noise,
     std::vector<BankedParticle>* noise_bank, const NoiseMaker* noise_maker) {
 #ifdef _OPENMP
@@ -74,18 +136,61 @@ std::vector<BankedParticle> SurfaceTracker::transport(
       // a nullptr
       MaterialHelper mat(trkr.material(), p.E());
 
+      // auto bound = trkr.boundary();
       while (p.is_alive()) {
         bool had_collision = false;
-        double d_coll = RNG::exponential(p.rng, mat.Et(p.E(), noise));
-        auto bound = trkr.get_nearest_boundary();
+        auto maj_indx = EGrid->get_lower_index(p.E());
+        double Emajorant =
+            Emaj->evaluate(p.E(), maj_indx) + mat.Ew(p.E(), noise);
+        p.set_Esmp(Emajorant);  // Sampling XS saved for cancellation
+        auto bound = trkr.boundary();
 
-        // score track length tally for boundary distance,
-        // no matter what sort of boundary condition
-        tallies->score_flight(p, std::min(d_coll, bound.distance), mat,
-                              settings::converged);
-        double k_trk_scr =
-            p.wgt() * std::min(d_coll, bound.distance) * mat.vEf(p.E());
-        thread_scores.k_trk_score += k_trk_scr;
+        double d_coll = 0.;
+        if (bound.boundary_type == BoundaryType::Vacuum) {
+          // Calculate probability of leaking and not leaking
+          const double P_leak = std::exp(-Emajorant * bound.distance);
+          const double P_no_leak = 1. - P_leak;
+
+          // Get the weight which flys all the way to boundary and leaks
+          const double wgt_leak = p.wgt() * P_leak;
+          const double wgt2_leak = p.wgt2() * P_leak;
+
+          // Get the weight which will have a collision
+          const double wgt_collides = p.wgt() * P_no_leak;
+          const double wgt2_collides = p.wgt2() * P_no_leak;
+
+          // Score implicit leackage
+          thread_scores.leakage_score += wgt_leak;
+
+          // Score implicit migration area
+          Position r_leak = p.r() + bound.distance * p.u();
+          thread_scores.mig_score +=
+              wgt_leak * (r_leak - p.r_birth()) * (r_leak - p.r_birth());
+
+          // Sample flight distance
+          d_coll = -std::log(1. - P_no_leak * RNG::rand(p.rng)) / Emajorant;
+
+          // Score the TLE for the portion which would have leaked
+          p.set_weight(wgt_leak);
+          p.set_weight2(wgt2_leak);
+          tallies->score_flight(p, bound.distance, mat, settings::converged);
+
+          // Reduce weight
+          p.set_weight(wgt_collides);
+          p.set_weight2(wgt2_collides);
+
+          // Score TLE for the portion which only goes to the collision site
+          tallies->score_flight(p, d_coll, mat, settings::converged);
+        } else {
+          d_coll = RNG::exponential(p.rng, Emajorant);
+
+          // Score track length tally for boundary distance.
+          // This is here because flux-like tallies are allowed with DT.
+          // No other quantity should be scored with a TLE, as an error
+          // should have been thrown when building all tallies.
+          tallies->score_flight(p, std::min(d_coll, bound.distance), mat,
+                                settings::converged);
+        }
 
         if (bound.distance < d_coll ||
             std::abs(bound.distance - d_coll) < 100. * SURFACE_COINCIDENT) {
@@ -112,38 +217,48 @@ std::vector<BankedParticle> SurfaceTracker::transport(
               fatal_error(mssg.str(), __FILE__, __LINE__);
             }
           } else {
-            trkr.cross_surface(bound);
-            trkr.get_current();
-            p.move(bound.distance);
-            // Check if we are lost
-            if (trkr.is_lost()) {
-              std::stringstream mssg;
-              mssg << "Particle " << p.history_id() << ".";
-              mssg << p.secondary_id() << " has become lost.\n";
-              mssg << "Previous valid coordinates: r = " << p.previous_r();
-              mssg << ", u = " << p.previous_u() << ".\n";
-              mssg << "Attempted to cross surface "
-                   << geometry::surfaces[bound.surface_index]->id();
-              mssg << " at a distance of " << bound.distance << " cm.\n";
-              mssg << "Currently lost at r = " << trkr.r()
-                   << ", u = " << trkr.u() << ".";
-              fatal_error(mssg.str(), __FILE__, __LINE__);
-            }
-            mat.set_material(trkr.material(), p.E());
+            fatal_error("Help me, how did I get here ?", __FILE__, __LINE__);
           }
         } else {
           // Update Position
           p.move(d_coll);
           trkr.move(d_coll);
+          trkr.get_current();
+          // Check if we are lost
+          if (trkr.is_lost()) {
+            std::stringstream mssg;
+            mssg << "Particle " << p.history_id() << ".";
+            mssg << p.secondary_id() << " has become lost.\n";
+            mssg << "Previous valid coordinates: r = " << p.previous_r();
+            mssg << ", u = " << p.previous_u() << ".\n";
+            mssg << "Attempted to fly a distance of " << d_coll << " cm.\n";
+            mssg << "Currently lost at r = " << trkr.r() << ", u = " << trkr.u()
+                 << ".";
+            fatal_error(mssg.str(), __FILE__, __LINE__);
+          }
+          mat.set_material(trkr.material(), p.E());
 
-          // Flag real collision
-          had_collision = true;
+          // Get true cross section here
+          double Et = mat.Et(p.E(), noise);
+
+          if (Et - Emajorant > 1.E-10) {
+            std::string mssg = "Total cross section excedeed majorant.";
+            fatal_error(mssg, __FILE__, __LINE__);
+          }
+
+          if (RNG::rand(p.rng) < (Et / Emajorant)) {
+            // Flag real collision
+            had_collision = true;
+          }
         }
 
         if (p.is_alive() && had_collision) {  // real collision
           collision(p, mat, thread_scores, noise, noise_maker);
           trkr.set_u(p.u());
-        }  // If alive for real collision
+          p.set_previous_collision_real();
+        } else if (p.is_alive()) {  // Virtual collision
+          p.set_previous_collision_virtual();
+        }
 
         if (!p.is_alive()) {
           // Attempt a resurection

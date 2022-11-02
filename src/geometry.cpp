@@ -55,29 +55,20 @@ Boundary::Boundary(double d, int index, BoundaryType bound)
 
 //==========================================================================
 // Function Definitions
-std::shared_ptr<Cell> get_cell(const Position &r, const Direction &u,
-                               int32_t on_surf) {
+Cell* get_cell(const Position& r, const Direction& u, int32_t on_surf) {
   // Ask root_universe for cell. If no cell is found, answer
   // will be a nullptr
   return root_universe->get_cell(r, u, on_surf);
 }
 
-Cell *get_cell_naked_ptr(const Position &r, const Direction &u,
-                         int32_t on_surf) {
-  // Ask root_universe for cell. If no cell is found, answer
-  // will be a nullptr
-  return root_universe->get_cell_naked_ptr(r, u, on_surf);
-}
-
-std::shared_ptr<Cell> get_cell(std::vector<GeoLilyPad> &stack,
-                               const Position &r, const Direction &u,
-                               int32_t on_surf) {
+Cell* get_cell(std::vector<GeoLilyPad>& stack, const Position& r,
+               const Direction& u, int32_t on_surf) {
   // Ask root_universe for cell. If no cell is found, answer
   // will be a nullptr
   return root_universe->get_cell(stack, r, u, on_surf);
 }
 
-Boundary get_boundary(const Position &r, const Direction &u, int32_t on_surf) {
+Boundary get_boundary(const Position& r, const Direction& u, int32_t on_surf) {
   // Define initial boundary which is first surface at INF
   double d_min = INF;
   BoundaryType btype = BoundaryType::Vacuum;
@@ -113,13 +104,13 @@ int32_t id_to_token(int32_t id) {
   return token;
 }
 
-void do_reflection(Particle &p, Boundary boundary) {
+void do_reflection(Particle& p, Boundary boundary) {
   // First, we should get the surface from the index
   if (boundary.surface_index < 0) {
     fatal_error("Surface index is less than zero in reflection.", __FILE__,
                 __LINE__);
   }
-  const std::shared_ptr<Surface> &surface = surfaces[boundary.surface_index];
+  const std::shared_ptr<Surface>& surface = surfaces[boundary.surface_index];
 
   // Get new Position object to temporarily contain the current position
   Position r_pre_refs = p.r();

@@ -45,7 +45,7 @@ void Pixel::set_R(uint8_t i_r) { r = i_r; }
 void Pixel::set_G(uint8_t i_g) { g = i_g; }
 void Pixel::set_B(uint8_t i_b) { b = i_b; }
 
-std::ostream &operator<<(std::ostream &out, const Pixel &p) {
+std::ostream& operator<<(std::ostream& out, const Pixel& p) {
   out << p.R() << p.G() << p.B();
   return out;
 }

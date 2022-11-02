@@ -39,7 +39,7 @@ ZCylinder::ZCylinder(double x_, double y_, double r_, BoundaryType bound,
                      uint32_t i_id, std::string i_name)
     : Surface{bound, i_id, i_name}, x0{x_}, y0{y_}, R{r_} {}
 
-int ZCylinder::sign(const Position &r, const Direction &u) const {
+int ZCylinder::sign(const Position& r, const Direction& u) const {
   double x = r.x() - x0;
   double y = r.y() - y0;
   double eval = y * y + x * x - R * R;
@@ -55,7 +55,7 @@ int ZCylinder::sign(const Position &r, const Direction &u) const {
   }
 }
 
-double ZCylinder::distance(const Position &r, const Direction &u,
+double ZCylinder::distance(const Position& r, const Direction& u,
                            bool on_surf) const {
   double a = u.y() * u.y() + u.x() * u.x();
   if (a == 0.) return INF;
@@ -84,7 +84,7 @@ double ZCylinder::distance(const Position &r, const Direction &u,
   }
 }
 
-Direction ZCylinder::norm(const Position &r) const {
+Direction ZCylinder::norm(const Position& r) const {
   double x = r.x() - x0;
   double y = r.y() - y0;
   return {x, y, 0.};

@@ -102,8 +102,12 @@ class Simulation {
   std::shared_ptr<Entropy> t_post_entropy = nullptr;
 
   void sync_signaled();
-  void sync_banks(std::vector<uint64_t> &nums,
-                  std::vector<BankedParticle> &bank);
+  void sync_banks(std::vector<uint64_t>& nums,
+                  std::vector<BankedParticle>& bank);
+
+  void particles_to_master(std::vector<BankedParticle>& bank);
+  void distribute_particles(std::vector<uint64_t>& nums,
+                            std::vector<BankedParticle>& bank);
 
 };  // Simulation
 

@@ -39,8 +39,8 @@
 #include <utils/output.hpp>
 #include <utils/position.hpp>
 
-inline double TrackLengthMeshTally::get_base_score(const Particle &p,
-                                                   MaterialHelper &mat) const {
+inline double TrackLengthMeshTally::get_base_score(const Particle& p,
+                                                   MaterialHelper& mat) const {
   // Calculate base score, absed on the quantity
   double base_score = 1. / net_weight;
   // Must multiply score by correct factor depending on the observed
@@ -122,8 +122,8 @@ inline double TrackLengthMeshTally::get_base_score(const Particle &p,
   return base_score;
 }
 
-void TrackLengthMeshTally::score_flight(const Particle &p, double d,
-                                        MaterialHelper &mat) {
+void TrackLengthMeshTally::score_flight(const Particle& p, double d,
+                                        MaterialHelper& mat) {
   // Local position and direction copies which we will use for tallying
   Position r = p.r();
   Direction u = p.u();
@@ -230,8 +230,8 @@ void TrackLengthMeshTally::score_flight(const Particle &p, double d,
   }  // While we still have to travel
 }
 
-bool TrackLengthMeshTally::find_entry_point(Position &r, const Direction &u,
-                                            double &d_flight) const {
+bool TrackLengthMeshTally::find_entry_point(Position& r, const Direction& u,
+                                            double& d_flight) const {
   double d_min = (r_low.x() - r.x()) / u.x();
   double d_max = (r_hi.x() - r.x()) / u.x();
 
@@ -300,10 +300,10 @@ bool TrackLengthMeshTally::find_entry_point(Position &r, const Direction &u,
   return true;
 }
 
-void TrackLengthMeshTally::initialize_indices(const Position &r,
-                                              const Direction &u, int &i,
-                                              int &j, int &k,
-                                              std::array<int, 3> &on) {
+void TrackLengthMeshTally::initialize_indices(const Position& r,
+                                              const Direction& u, int& i,
+                                              int& j, int& k,
+                                              std::array<int, 3>& on) {
   i = std::floor((r.x() - r_low.x()) / dx);
   j = std::floor((r.y() - r_low.y()) / dy);
   k = std::floor((r.z() - r_low.z()) / dz);
@@ -373,8 +373,8 @@ void TrackLengthMeshTally::initialize_indices(const Position &r,
 }
 
 std::pair<double, int> TrackLengthMeshTally::distance_to_next_index(
-    const Position &r, const Direction &u, int i, int j, int k,
-    const std::array<int, 3> &on) {
+    const Position& r, const Direction& u, int i, int j, int k,
+    const std::array<int, 3>& on) {
   // Get position at center of current tile
   double xc = r_low.x() + i * dx + 0.5 * dx;
   double yc = r_low.y() + j * dy + 0.5 * dy;
@@ -435,8 +435,8 @@ std::pair<double, int> TrackLengthMeshTally::distance_to_next_index(
   return {dist, key};
 }
 
-void TrackLengthMeshTally::update_indices(int key, int &i, int &j, int &k,
-                                          std::array<int, 3> &on) {
+void TrackLengthMeshTally::update_indices(int key, int& i, int& j, int& k,
+                                          std::array<int, 3>& on) {
   // Must initially fill with zero, so that we don't stay on top
   // of other surfaces the entire time
   on.fill(0);
@@ -557,7 +557,7 @@ std::string TrackLengthMeshTally::quantity_str() const {
 }
 
 std::shared_ptr<TrackLengthMeshTally> make_track_length_mesh_tally(
-    const YAML::Node &node) {
+    const YAML::Node& node) {
   using Quantity = TrackLengthMeshTally::Quantity;
 
   // Get low position

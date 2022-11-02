@@ -39,7 +39,7 @@ XCylinder::XCylinder(double y_, double z_, double r_, BoundaryType bound,
                      uint32_t i_id, std::string i_name)
     : Surface{bound, i_id, i_name}, y0{y_}, z0{z_}, R{r_} {}
 
-int XCylinder::sign(const Position &r, const Direction &u) const {
+int XCylinder::sign(const Position& r, const Direction& u) const {
   double y = r.y() - y0;
   double z = r.z() - z0;
   double eval = y * y + z * z - R * R;
@@ -55,7 +55,7 @@ int XCylinder::sign(const Position &r, const Direction &u) const {
   }
 }
 
-double XCylinder::distance(const Position &r, const Direction &u,
+double XCylinder::distance(const Position& r, const Direction& u,
                            bool on_surf) const {
   double a = u.y() * u.y() + u.z() * u.z();
   if (a == 0.) return INF;
@@ -84,7 +84,7 @@ double XCylinder::distance(const Position &r, const Direction &u,
   }
 }
 
-Direction XCylinder::norm(const Position &r) const {
+Direction XCylinder::norm(const Position& r) const {
   double y = r.y() - y0;
   double z = r.z() - z0;
   return {0., y, z};

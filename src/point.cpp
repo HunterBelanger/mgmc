@@ -34,7 +34,7 @@
 #include <simulation/point.hpp>
 #include <utils/error.hpp>
 
-std::shared_ptr<Point> make_point_distribution(const YAML::Node &node) {
+std::shared_ptr<Point> make_point_distribution(const YAML::Node& node) {
   if (!node["position"] || !node["position"].IsSequence() ||
       !(node["position"].size() == 3)) {
     std::string mssg =

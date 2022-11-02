@@ -31,32 +31,26 @@
  * pris connaissance de la licence CeCILL, et que vous en avez accepté les
  * termes.
  *============================================================================*/
-#ifndef YPLANE_H
-#define YPLANE_H
+#ifndef IMPLICIT_LEAKAGE_DELTA_TRACKER_H
+#define IMPLICIT_LEAKAGE_DELTA_TRACKER_H
 
-#include <yaml-cpp/yaml.h>
+#include <PapillonNDL/cross_section.hpp>
+#include <PapillonNDL/energy_grid.hpp>
+#include <simulation/transporter.hpp>
 
-#include <geometry/surfaces/surface.hpp>
-
-class YPlane : public Surface {
+class ImplicitLeakageDeltaTracker : public Transporter {
  public:
-  YPlane(double x, BoundaryType bound, uint32_t i_id, std::string i_name);
-  ~YPlane() = default;
+  ImplicitLeakageDeltaTracker(std::shared_ptr<Tallies> i_t);
+  ~ImplicitLeakageDeltaTracker() = default;
 
-  int sign(const Position& r, const Direction& u) const override;
-
-  double distance(const Position& r, const Direction& u,
-                  bool on_surf) const override;
-
-  Direction norm(const Position& r) const override;
+  std::vector<BankedParticle> transport(
+      std::vector<Particle>& bank, bool noise = false,
+      std::vector<BankedParticle>* noise_bank = nullptr,
+      const NoiseMaker* noise_maker = nullptr);
 
  private:
-  double y0;
-
-};  // YPlane
-
-//===========================================================================
-// Non-Member Functions
-std::shared_ptr<YPlane> make_yplane(YAML::Node surface_node);
+  std::shared_ptr<pndl::EnergyGrid> EGrid;
+  std::shared_ptr<pndl::CrossSection> Emaj;
+};  // ImplicitLeakageDeltaTracker
 
 #endif

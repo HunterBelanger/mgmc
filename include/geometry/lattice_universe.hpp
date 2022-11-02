@@ -57,14 +57,10 @@ class LatticeUniverse : public Universe {
   LatticeUniverse(uint32_t i_lat, uint32_t i_id, std::string i_name);
   ~LatticeUniverse() = default;
 
-  std::shared_ptr<Cell> get_cell(Position r, Direction u,
-                                 int32_t on_surf) const override;
+  Cell* get_cell(Position r, Direction u, int32_t on_surf) const override;
 
-  Cell* get_cell_naked_ptr(Position r, Direction u,
-                           int32_t on_surf) const override;
-
-  std::shared_ptr<Cell> get_cell(std::vector<GeoLilyPad>& stack, Position r,
-                                 Direction u, int32_t on_surf) const override;
+  Cell* get_cell(std::vector<GeoLilyPad>& stack, Position r, Direction u,
+                 int32_t on_surf) const override;
 
  private:
   uint32_t lattice_index;

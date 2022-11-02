@@ -43,7 +43,7 @@ class MonoEnergetic : public EnergyDistribution {
  public:
   MonoEnergetic(double energy);
 
-  double sample(pcg32 &rng) const override final;
+  double sample(pcg32& rng) const override final;
 
   double energy() const { return energy_; }
 
@@ -52,6 +52,6 @@ class MonoEnergetic : public EnergyDistribution {
 };
 
 std::shared_ptr<MonoEnergetic> make_mono_energetic_distribution(
-    const YAML::Node &node);
+    const YAML::Node& node);
 
 #endif

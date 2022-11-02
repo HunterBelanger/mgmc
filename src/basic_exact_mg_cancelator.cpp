@@ -73,7 +73,7 @@ BasicExactMGCancelator::BasicExactMGCancelator(Position low, Position hi,
   hash_fn.shape[2] = Nz;
 }
 
-bool BasicExactMGCancelator::add_particle(BankedParticle &p) {
+bool BasicExactMGCancelator::add_particle(BankedParticle& p) {
   // Get bin indicies for spacial coordinates
   int i = std::floor((p.r.x() - r_low.x()) / dx);
   int j = std::floor((p.r.y() - r_low.y()) / dy);
@@ -95,11 +95,11 @@ bool BasicExactMGCancelator::add_particle(BankedParticle &p) {
   Key key{i, j, k};
 
   // Get the material pointer
-  Material *mat = get_material(p.r);
+  Material* mat = get_material(p.r);
 
   // If the bin doesn't exist yet, initalize it
   if (bins.find(key) == bins.end()) {
-    bins[key] = std::unordered_map<Material *, CancelBin>();
+    bins[key] = std::unordered_map<Material*, CancelBin>();
   }
 
   // Check if a bin exists for that material
@@ -116,7 +116,7 @@ bool BasicExactMGCancelator::add_particle(BankedParticle &p) {
 }
 
 std::optional<Position> BasicExactMGCancelator::sample_position(
-    const Key &key, Material *mat, pcg32 &rng) const {
+    const Key& key, Material* mat, pcg32& rng) const {
   // Get bin positions
   double Xl = r_low.x() + key.i * dx;
   double Yl = r_low.y() + key.j * dy;
@@ -130,7 +130,7 @@ std::optional<Position> BasicExactMGCancelator::sample_position(
     double y = Yl + RNG::rand(rng) * dy;
     double z = Zl + RNG::rand(rng) * dz;
     r_smp = Position(x, y, z);
-    Material *mat_smp = get_material(r_smp);
+    Material* mat_smp = get_material(r_smp);
 
     if (mat_smp == mat) {
       position_sampled = true;
@@ -148,7 +148,7 @@ std::optional<Position> BasicExactMGCancelator::sample_position(
 }
 
 std::optional<Position> BasicExactMGCancelator::sample_position_sobol(
-    const Key &key, Material *mat, unsigned long long &i) const {
+    const Key& key, Material* mat, unsigned long long& i) const {
   // Get bin positions
   double Xl = r_low.x() + key.i * dx;
   double Yl = r_low.y() + key.j * dy;
@@ -162,7 +162,7 @@ std::optional<Position> BasicExactMGCancelator::sample_position_sobol(
     double y = Yl + sobol::sample(i, 1) * dy;
     double z = Zl + sobol::sample(i, 2) * dz;
     r_smp = Position(x, y, z);
-    Material *mat_smp = get_material(r_smp);
+    Material* mat_smp = get_material(r_smp);
 
     if (mat_smp == mat) {
       position_sampled = true;
@@ -180,14 +180,14 @@ std::optional<Position> BasicExactMGCancelator::sample_position_sobol(
   return std::make_optional(r_smp);
 }
 
-Material *BasicExactMGCancelator::get_material(const Position &r) const {
-  Cell *cell = geometry::get_cell_naked_ptr(r, {1., 0., 0.});
+Material* BasicExactMGCancelator::get_material(const Position& r) const {
+  Cell* cell = geometry::get_cell(r, {1., 0., 0.});
 
   if (!cell) {
     return nullptr;
   }
 
-  Material *mat = cell->material().get();
+  Material* mat = cell->material();
 
   if (!mat) {
     std::stringstream mssg;
@@ -199,8 +199,8 @@ Material *BasicExactMGCancelator::get_material(const Position &r) const {
   return mat;
 }
 
-double BasicExactMGCancelator::get_f(const Position &r,
-                                     const Position &r_parent,
+double BasicExactMGCancelator::get_f(const Position& r,
+                                     const Position& r_parent,
                                      double Esmp) const {
   double d = std::sqrt(std::pow(r.x() - r_parent.x(), 2.) +
                        std::pow(r.y() - r_parent.y(), 2.) +
@@ -227,8 +227,8 @@ double BasicExactMGCancelator::get_f(const Position &r,
   return f;
 }
 
-double BasicExactMGCancelator::get_min_f(const Key &key,
-                                         const Position &r_parent,
+double BasicExactMGCancelator::get_min_f(const Key& key,
+                                         const Position& r_parent,
                                          double Esmp) const {
   // Get bin positions
   double Xl = r_low.x() + key.i * dx;
@@ -263,12 +263,8 @@ double BasicExactMGCancelator::get_min_f(const Key &key,
   return beta;
 }
 
-void BasicExactMGCancelator::get_averages(const Key &key, Material *mat,
-                                          CancelBin &bin, pcg32 &rng) {
-  // Get copy of shared ptr for the material, used by the MaterialHelper for
-  // getting the macroscopic fission xs.
-  std::shared_ptr<Material> mat_ptr = mat->shared_from_this();
-
+void BasicExactMGCancelator::get_averages(const Key& key, Material* mat,
+                                          CancelBin& bin, pcg32& rng) {
   // Make sure vectors are allocated
   bin.averages.resize(bin.particles.size());
 
@@ -292,12 +288,12 @@ void BasicExactMGCancelator::get_averages(const Key &key, Material *mat,
     Position r_parent = bin.particles[i]->parents_previous_position;
     double E = bin.particles[i]->parents_previous_energy;
     double Esmp = bin.particles[i]->Esmp_parent;
-    MaterialHelper mat_helper(mat_ptr, E);
+    MaterialHelper mat_helper(mat, E);
 
     // Compute the average value for f and 1/f
     double sum_f = 0.;
     double sum_f_inv = 0.;
-    for (const auto &r_smp : r_smps) {
+    for (const auto& r_smp : r_smps) {
       double f = get_f(r_smp, r_parent, Esmp);
       sum_f += f;
       sum_f_inv += 1. / f;
@@ -328,12 +324,8 @@ void BasicExactMGCancelator::get_averages(const Key &key, Material *mat,
   }
 }
 
-void BasicExactMGCancelator::get_averages_sobol(const Key &key, Material *mat,
-                                                CancelBin &bin) {
-  // Get copy of shared ptr for the material, used by the MaterialHelper for
-  // getting the macroscopic fission xs.
-  std::shared_ptr<Material> mat_ptr = mat->shared_from_this();
-
+void BasicExactMGCancelator::get_averages_sobol(const Key& key, Material* mat,
+                                                CancelBin& bin) {
   // Make sure vectors are allocated
   bin.averages.resize(bin.particles.size());
 
@@ -359,12 +351,12 @@ void BasicExactMGCancelator::get_averages_sobol(const Key &key, Material *mat,
     Position r_parent = bin.particles[i]->parents_previous_position;
     double E = bin.particles[i]->parents_previous_energy;
     double Esmp = bin.particles[i]->Esmp_parent;
-    MaterialHelper mat_helper(mat_ptr, E);
+    MaterialHelper mat_helper(mat, E);
 
     // Compute the average value for f and 1/f
     double sum_f = 0.;
     double sum_f_inv = 0.;
-    for (const auto &r_smp : r_smps) {
+    for (const auto& r_smp : r_smps) {
       double f = get_f(r_smp, r_parent, Esmp);
       sum_f += f;
       sum_f_inv += 1. / f;
@@ -395,8 +387,8 @@ void BasicExactMGCancelator::get_averages_sobol(const Key &key, Material *mat,
   }
 }
 
-double BasicExactMGCancelator::get_beta(const Key &key, const CancelBin &bin,
-                                        std::size_t i, const Position &r_parent,
+double BasicExactMGCancelator::get_beta(const Key& key, const CancelBin& bin,
+                                        std::size_t i, const Position& r_parent,
                                         double Esmp, double wgt,
                                         bool first_wgt) const {
   if (bin.can_cancel == false) return 0.;
@@ -432,16 +424,14 @@ double BasicExactMGCancelator::get_beta(const Key &key, const CancelBin &bin,
   return 0.;
 }
 
-void BasicExactMGCancelator::cancel_bin(const Key &key, Material *mat,
-                                        CancelBin &bin, bool first_wgt) {
-  std::shared_ptr<Material> bin_material = mat->shared_from_this();
-
+void BasicExactMGCancelator::cancel_bin(const Key& key, Material* mat_ptr,
+                                        CancelBin& bin, bool first_wgt) {
   // Go through all particles in bin
   for (std::size_t i = 0; i < bin.particles.size(); i++) {
     Position r_parent = bin.particles[i]->parents_previous_position;
     double E = bin.particles[i]->parents_previous_energy;
     double Esmp = bin.particles[i]->Esmp_parent;
-    MaterialHelper mat(bin_material, E);
+    MaterialHelper mat(mat_ptr, E);
 
     double wgt = first_wgt ? bin.particles[i]->wgt : bin.particles[i]->wgt2;
 
@@ -473,7 +463,7 @@ void BasicExactMGCancelator::cancel_bin(const Key &key, Material *mat,
   }
 }
 
-void BasicExactMGCancelator::perform_cancellation(pcg32 &rng) {
+void BasicExactMGCancelator::perform_cancellation(pcg32& rng) {
   if (beta_mode == BetaMode::Zero) return;
 
   // If we have no bins (meaning no particles), then
@@ -481,12 +471,12 @@ void BasicExactMGCancelator::perform_cancellation(pcg32 &rng) {
   if (bins.size() == 0) return;
 
   // Get vector of keys to do cancellation in parallel
-  std::vector<std::pair<Key, Material *>> keys;
+  std::vector<std::pair<Key, Material*>> keys;
   keys.reserve(bins.size());
-  for (const auto &key_matbin_pair : bins) {
-    const auto &key = key_matbin_pair.first;
-    const auto &matbin = key_matbin_pair.second;
-    for (const auto &mat_bin_pair : matbin)
+  for (const auto& key_matbin_pair : bins) {
+    const auto& key = key_matbin_pair.first;
+    const auto& matbin = key_matbin_pair.second;
+    for (const auto& mat_bin_pair : matbin)
       keys.push_back({key, mat_bin_pair.first});
   }
 
@@ -510,10 +500,10 @@ void BasicExactMGCancelator::perform_cancellation(pcg32 &rng) {
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
-  for (const auto &key_mat_pair : keys) {
+  for (const auto& key_mat_pair : keys) {
     Key key = key_mat_pair.first;
-    Material *mat = key_mat_pair.second;
-    CancelBin &bin = bins[key][mat];
+    Material* mat = key_mat_pair.second;
+    CancelBin& bin = bins[key][mat];
 
     pcg32 rng_local = rng;
     rng_local.advance(bin.rng_seed_advance);
@@ -525,7 +515,7 @@ void BasicExactMGCancelator::perform_cancellation(pcg32 &rng) {
       bool has_neg_w1 = false;
       bool has_pos_w2 = false;
       bool has_neg_w2 = false;
-      for (const auto &p : bin.particles) {
+      for (const auto& p : bin.particles) {
         if (p->wgt > 0.)
           has_pos_w1 = true;
         else if (p->wgt < 0.)
@@ -571,18 +561,18 @@ void BasicExactMGCancelator::perform_cancellation(pcg32 &rng) {
 }
 
 std::vector<BankedParticle> BasicExactMGCancelator::get_new_particles(
-    pcg32 &rng) {
+    pcg32& rng) {
   if (beta_mode == BetaMode::Zero) return {};
 
   std::vector<BankedParticle> uniform_particles;
 
-  for (auto &key_bin_pair : bins) {
-    const auto &key = key_bin_pair.first;
-    auto &material_bins = key_bin_pair.second;
+  for (auto& key_bin_pair : bins) {
+    const auto& key = key_bin_pair.first;
+    auto& material_bins = key_bin_pair.second;
 
-    for (auto &mat_bin_pair : material_bins) {
-      Material *mat = mat_bin_pair.first;
-      CancelBin &bin = mat_bin_pair.second;
+    for (auto& mat_bin_pair : material_bins) {
+      Material* mat = mat_bin_pair.first;
+      CancelBin& bin = mat_bin_pair.second;
 
       // Get bin positions
       auto mat_ptr = mat->shared_from_this();
@@ -614,22 +604,16 @@ std::vector<BankedParticle> BasicExactMGCancelator::get_new_particles(
             fatal_error(out.str(), __FILE__, __LINE__);
           }
 
-          // Fake particle for calling Nuclide::make_fission_neutron
-          Particle fake_particle(r_smp.value(), {0., 0., 1.}, 0., 1., 0., 0);
-          // Must set particle RNG to be our passed rng so that is will continue
-          // along the same stream we are using for cancellation inside the
-          // make_fission_neutron method
-          fake_particle.rng = rng;
-
-          // Sample particle energy
-          BankedParticle uniform_particle =
-              nuclide->make_fission_neutron(fake_particle, 0, 0, 0);
+          // Sample particle energy and direction
+          FissionInfo finfo =
+              nuclide->sample_fission(0., {0., 0., 1.}, 0, 0., rng);
+          BankedParticle uniform_particle;
+          uniform_particle.u = finfo.direction;
+          uniform_particle.E = finfo.energy;
           uniform_particle.wgt = w;
           uniform_particle.wgt2 = w2;
-
-          // We must now get the rng back from the particle, as the copy inside
-          // the particle was changed when sampling the uniform particle.
-          rng = fake_particle.rng;
+          uniform_particle.parent_history_id = 0;
+          uniform_particle.parent_daughter_id = 0;
 
           // Save sampled particle
           uniform_particles.push_back(uniform_particle);
@@ -647,7 +631,7 @@ std::vector<BankedParticle> BasicExactMGCancelator::get_new_particles(
 void BasicExactMGCancelator::clear() { bins.clear(); }
 
 std::shared_ptr<BasicExactMGCancelator> make_basic_exact_mg_cancelator(
-    const YAML::Node &node) {
+    const YAML::Node& node) {
   // Get low
   if (!node["low"] || !node["low"].IsSequence() || !(node["low"].size() == 3)) {
     std::string mssg = "No valid low entry for basic exact MG cancelator.";

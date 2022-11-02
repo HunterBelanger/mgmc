@@ -40,19 +40,13 @@ LatticeUniverse::LatticeUniverse(uint32_t i_lat, uint32_t i_id,
                                  std::string i_name)
     : Universe{i_id, i_name}, lattice_index{i_lat} {}
 
-std::shared_ptr<Cell> LatticeUniverse::get_cell(Position r, Direction u,
-                                                int32_t on_surf) const {
+Cell* LatticeUniverse::get_cell(Position r, Direction u,
+                                int32_t on_surf) const {
   return geometry::lattices[lattice_index]->get_cell(r, u, on_surf);
 }
 
-Cell* LatticeUniverse::get_cell_naked_ptr(Position r, Direction u,
-                                          int32_t on_surf) const {
-  return geometry::lattices[lattice_index]->get_cell_naked_ptr(r, u, on_surf);
-}
-
-std::shared_ptr<Cell> LatticeUniverse::get_cell(std::vector<GeoLilyPad>& stack,
-                                                Position r, Direction u,
-                                                int32_t on_surf) const {
+Cell* LatticeUniverse::get_cell(std::vector<GeoLilyPad>& stack, Position r,
+                                Direction u, int32_t on_surf) const {
   // First push universe info onto the stack
   stack.push_back({GeoLilyPad::PadType::Universe, id_, r, {0, 0, 0}, false});
 

@@ -85,7 +85,7 @@ SquareOscillationNoiseSource::SquareOscillationNoiseSource(
   }
 }
 
-bool SquareOscillationNoiseSource::is_inside(const Position &r) const {
+bool SquareOscillationNoiseSource::is_inside(const Position& r) const {
   if (r.x() > low_.x() && r.y() > low_.y() && r.z() > low_.z() &&
       r.x() < hi_.x() && r.y() < hi_.y() && r.z() < hi_.z())
     return true;
@@ -93,7 +93,7 @@ bool SquareOscillationNoiseSource::is_inside(const Position &r) const {
   return false;
 }
 
-std::complex<double> SquareOscillationNoiseSource::dEt(const Position &r,
+std::complex<double> SquareOscillationNoiseSource::dEt(const Position& r,
                                                        double E,
                                                        double w) const {
   // Get the material
@@ -122,8 +122,9 @@ std::complex<double> SquareOscillationNoiseSource::dEt(const Position &r,
   }
 }
 
-std::complex<double> SquareOscillationNoiseSource::dEt_Et(
-    const Position & /*r*/, double /*E*/, double w) const {
+std::complex<double> SquareOscillationNoiseSource::dEt_Et(const Position& /*r*/,
+                                                          double /*E*/,
+                                                          double w) const {
   // Get the frequency multiple n
   int32_t n = static_cast<int32_t>(std::round(w / w0_));
 
@@ -136,7 +137,7 @@ std::complex<double> SquareOscillationNoiseSource::dEt_Et(
   }
 }
 
-std::complex<double> SquareOscillationNoiseSource::dEf(const Position &r,
+std::complex<double> SquareOscillationNoiseSource::dEf(const Position& r,
                                                        double E,
                                                        double w) const {
   // Get the material
@@ -165,8 +166,9 @@ std::complex<double> SquareOscillationNoiseSource::dEf(const Position &r,
   }
 }
 
-std::complex<double> SquareOscillationNoiseSource::dEf_Ef(
-    const Position & /*r*/, double /*E*/, double w) const {
+std::complex<double> SquareOscillationNoiseSource::dEf_Ef(const Position& /*r*/,
+                                                          double /*E*/,
+                                                          double w) const {
   // Get the frequency multiple n
   int32_t n = static_cast<int32_t>(std::round(w / w0_));
 
@@ -179,7 +181,7 @@ std::complex<double> SquareOscillationNoiseSource::dEf_Ef(
   }
 }
 
-std::complex<double> SquareOscillationNoiseSource::dEelastic(const Position &r,
+std::complex<double> SquareOscillationNoiseSource::dEelastic(const Position& r,
                                                              double E,
                                                              double w) const {
   // Get the material
@@ -209,7 +211,7 @@ std::complex<double> SquareOscillationNoiseSource::dEelastic(const Position &r,
 }
 
 std::complex<double> SquareOscillationNoiseSource::dEelastic_Eelastic(
-    const Position & /*r*/, double /*E*/, double w) const {
+    const Position& /*r*/, double /*E*/, double w) const {
   // Get the frequency multiple n
   int32_t n = static_cast<int32_t>(std::round(w / w0_));
 
@@ -223,7 +225,7 @@ std::complex<double> SquareOscillationNoiseSource::dEelastic_Eelastic(
 }
 
 std::complex<double> SquareOscillationNoiseSource::dEmt(uint32_t mt,
-                                                        const Position &r,
+                                                        const Position& r,
                                                         double E,
                                                         double w) const {
   // Get the material
@@ -253,7 +255,7 @@ std::complex<double> SquareOscillationNoiseSource::dEmt(uint32_t mt,
 }
 
 std::complex<double> SquareOscillationNoiseSource::dEmt_Emt(
-    uint32_t /*mt*/, const Position & /*r*/, double /*E*/, double w) const {
+    uint32_t /*mt*/, const Position& /*r*/, double /*E*/, double w) const {
   // Get the frequency multiple n
   int32_t n = static_cast<int32_t>(std::round(w / w0_));
 
@@ -267,7 +269,7 @@ std::complex<double> SquareOscillationNoiseSource::dEmt_Emt(
 }
 
 std::shared_ptr<OscillationNoiseSource> make_square_oscillation_noise_source(
-    const YAML::Node &snode) {
+    const YAML::Node& snode) {
   // Get low
   if (!snode["low"] || !snode["low"].IsSequence() ||
       !(snode["low"].size() == 3)) {

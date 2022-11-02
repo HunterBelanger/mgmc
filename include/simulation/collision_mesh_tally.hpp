@@ -62,11 +62,11 @@ class CollisionMeshTally : public MeshTally {
   };
 
   CollisionMeshTally(Position low, Position hi, uint64_t nx, uint64_t ny,
-                     uint64_t nz, const std::vector<double> &ebounds,
+                     uint64_t nz, const std::vector<double>& ebounds,
                      Quantity q, std::string fname, uint32_t mt = 0)
       : MeshTally(low, hi, nx, ny, nz, ebounds, fname), quantity(q), mt(mt) {}
 
-  void score_collision(const Particle &p, MaterialHelper &mat);
+  void score_collision(const Particle& p, MaterialHelper& mat);
 
  private:
   Quantity quantity;
@@ -76,6 +76,6 @@ class CollisionMeshTally : public MeshTally {
 };
 
 std::shared_ptr<CollisionMeshTally> make_collision_mesh_tally(
-    const YAML::Node &node);
+    const YAML::Node& node);
 
 #endif

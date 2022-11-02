@@ -34,14 +34,15 @@
 #ifndef CELL_H
 #define CELL_H
 
-#include <yaml-cpp/yaml.h>
-
-#include <geometry/surfaces/surface.hpp>
 #include <limits>
 #include <map>
-#include <materials/material.hpp>
 #include <memory>
 #include <vector>
+
+#include <geometry/surfaces/surface.hpp>
+#include <materials/material.hpp>
+
+#include <yaml-cpp/yaml.h>
 
 class Cell;
 
@@ -75,13 +76,13 @@ class Cell {
        uint32_t i_id, std::string i_name);
   ~Cell() = default;
 
-  bool is_inside(const Position &r, const Direction &u, int32_t on_surf) const;
+  bool is_inside(const Position& r, const Direction& u, int32_t on_surf) const;
 
-  std::pair<double, int32_t> distance_to_boundary(const Position &r,
-                                                  const Direction &u,
+  std::pair<double, int32_t> distance_to_boundary(const Position& r,
+                                                  const Direction& u,
                                                   int32_t on_surf) const;
 
-  const std::shared_ptr<Material> &material() const;
+  Material* material() { return material_raw_; }
 
   uint32_t id() const;
 
@@ -99,12 +100,13 @@ class Cell {
   uint32_t id_;
   std::string name_;
 
-  bool is_inside_simple(const Position &r, const Direction &u,
+  bool is_inside_simple(const Position& r, const Direction& u,
                         int32_t on_surf) const;
-  bool is_inside_complex(const Position &r, const Direction &u,
+  bool is_inside_complex(const Position& r, const Direction& u,
                          int32_t on_surf) const;
 
   std::shared_ptr<Material> material_;
+  Material* material_raw_;
 
   std::vector<std::shared_ptr<Cell>> neighbors_{};
 
@@ -112,7 +114,7 @@ class Cell {
 
 //===========================================================================
 // Non-Member Functions
-std::vector<int32_t> infix_to_rpn(const std::vector<int32_t> &infix);
+std::vector<int32_t> infix_to_rpn(const std::vector<int32_t>& infix);
 
 void make_cell(YAML::Node cell_node);
 

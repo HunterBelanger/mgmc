@@ -58,14 +58,10 @@ class CellUniverse : public Universe {
   CellUniverse(std::vector<uint32_t> i_ind, uint32_t i_id, std::string i_name);
   ~CellUniverse() = default;
 
-  std::shared_ptr<Cell> get_cell(Position r, Direction u,
-                                 int32_t on_surf) const override;
+  Cell* get_cell(Position r, Direction u, int32_t on_surf) const override;
 
-  Cell* get_cell_naked_ptr(Position r, Direction u,
-                           int32_t on_surf) const override;
-
-  std::shared_ptr<Cell> get_cell(std::vector<GeoLilyPad>& stack, Position r,
-                                 Direction u, int32_t on_surf) const override;
+  Cell* get_cell(std::vector<GeoLilyPad>& stack, Position r, Direction u,
+                 int32_t on_surf) const override;
 
  private:
   std::vector<uint32_t> cell_indicies;

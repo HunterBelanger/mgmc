@@ -53,7 +53,7 @@ class Cone : public DirectionDistribution {
   // of HALF the beam.
   Cone(Direction u, double aperture);
 
-  Direction sample(pcg32 &rng) const override final;
+  Direction sample(pcg32& rng) const override final;
 
   Direction direction() const { return direction_; }
 
@@ -65,6 +65,6 @@ class Cone : public DirectionDistribution {
   double aperture_;
 };
 
-std::shared_ptr<Cone> make_cone_distribution(const YAML::Node &node);
+std::shared_ptr<Cone> make_cone_distribution(const YAML::Node& node);
 
 #endif

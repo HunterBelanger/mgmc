@@ -38,8 +38,8 @@
 #include <utils/settings.hpp>
 #include <vector>
 
-void CollisionMeshTally::score_collision(const Particle &p,
-                                         MaterialHelper &mat) {
+void CollisionMeshTally::score_collision(const Particle& p,
+                                         MaterialHelper& mat) {
   double Et = mat.Et(p.E());
 
   double scr = 1. / (Et * net_weight);
@@ -237,7 +237,7 @@ std::string CollisionMeshTally::quantity_str() const {
 }
 
 std::shared_ptr<CollisionMeshTally> make_collision_mesh_tally(
-    const YAML::Node &node) {
+    const YAML::Node& node) {
   using Quantity = CollisionMeshTally::Quantity;
 
   // Get low position

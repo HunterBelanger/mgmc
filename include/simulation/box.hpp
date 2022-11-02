@@ -40,7 +40,7 @@ class Box : public SpatialDistribution {
  public:
   Box(Position low, Position hi);
 
-  Position sample(pcg32 &rng) const override final;
+  Position sample(pcg32& rng) const override final;
 
   Position low() const { return low_; }
   Position hi() const { return hi_; }
@@ -49,6 +49,6 @@ class Box : public SpatialDistribution {
   Position low_, hi_;
 };
 
-std::shared_ptr<Box> make_box_distribution(const YAML::Node &node);
+std::shared_ptr<Box> make_box_distribution(const YAML::Node& node);
 
 #endif

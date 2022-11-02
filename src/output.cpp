@@ -87,7 +87,7 @@ void Output::write_saved_warnings() {
     if (out.is_open()) out << "\n";
   }
 
-  for (const auto &wrn : warnings_for_latter) {
+  for (const auto& wrn : warnings_for_latter) {
     std::cout << " WARNING: " << wrn << "\n";
     if (out.is_open()) out << " WARNING: " << wrn << "\n";
   }
@@ -138,7 +138,7 @@ void print_header() {
   info += " MPI Ranks           : " + std::to_string(mpi::size) + "\n";
 #endif
 
-  info += " MGMC Git Hash       : " MGMC_GIT_HASH "\n";
+  info += " MGMC Git Hash   : " MGMC_GIT_HASH "\n";
 
   output->write(info);
 }

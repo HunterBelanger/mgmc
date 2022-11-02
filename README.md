@@ -25,8 +25,7 @@ using combinations of surface half-spaces to create cells. Like in other Monte
 Carlo codes, Universes and Lattices may be used to construct more complex
 geometries such as for fuel assemblies found in nuclear reactors. Material
 cross sections may be provided with any number of energy groups, so long as all
-materials in the problem have the same number of groups. Currently, only
-isotropic scattering is supported.
+materials in the problem have the same number of groups.
 
 Three different particle tracking methods are available to users:
 surface-tracking, delta-tracking [1], and carter-tracking [2]. Either of these
@@ -41,7 +40,9 @@ available, using a collision estimator or a track-length estimator. The tallies
 are saved in `.npy` files, for easy plotting in Python. Plots of the geometry
 may also be specified in the input file, and are generated when the program is
 run with the `--plot` flag. Shared memory parallelism is implemented with
-OpenMP, and is turned on by default.
+OpenMP, and is turned on by default. Distributed memory parallelism with MPI
+can be turned on at compiled time with the `-DMGMC_USE_MPI=ON` opiton
+when running cmake.
 
 In addition to solving standard k-eigenvalue and fixed-source problems, MGMC
 is also able to solve neutron noise problems for macroscopic cross section

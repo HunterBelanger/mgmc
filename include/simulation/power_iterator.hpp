@@ -61,6 +61,7 @@ class PowerIterator : public Simulation {
   int Nnet = 0, Npos = 0, Nneg = 0, Ntot = 0;
   int Wnet = 0, Wpos = 0, Wneg = 0, Wtot = 0;
   int gen = 0;
+  double r_sqrd = 0.;
 
   void check_time(int gen);
 
@@ -68,16 +69,19 @@ class PowerIterator : public Simulation {
 
   void generation_output();
 
-  void write_source(std::vector<Particle> &bank, std::string source_fname);
+  void write_source(std::vector<Particle>& bank, std::string source_fname);
 
-  void normalize_weights(std::vector<BankedParticle> &next_gen);
+  void normalize_weights(std::vector<BankedParticle>& next_gen);
 
-  void perform_regional_cancellation(std::vector<BankedParticle> &next_gen);
+  void perform_regional_cancellation(std::vector<BankedParticle>& next_gen);
 
   // Entropy calculation
-  void compute_pre_cancellation_entropy(std::vector<BankedParticle> &next_gen);
-  void compute_post_cancellation_entropy(std::vector<BankedParticle> &next_gen);
+  void compute_pre_cancellation_entropy(std::vector<BankedParticle>& next_gen);
+  void compute_post_cancellation_entropy(std::vector<BankedParticle>& next_gen);
   void zero_entropy();
+
+  // Pair-distance sqrd calculation
+  double compute_pair_dist_sqrd(const std::vector<BankedParticle>& next_gen);
 
   void print_header();
 

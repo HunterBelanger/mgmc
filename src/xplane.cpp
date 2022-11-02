@@ -38,7 +38,7 @@
 XPlane::XPlane(double x, BoundaryType bound, uint32_t i_id, std::string i_name)
     : Surface{bound, i_id, i_name}, x0{x} {}
 
-int XPlane::sign(const Position &r, const Direction &u) const {
+int XPlane::sign(const Position& r, const Direction& u) const {
   if (r.x() - x0 > SURFACE_COINCIDENT)
     return 1;
   else if (r.x() - x0 < -SURFACE_COINCIDENT)
@@ -51,7 +51,7 @@ int XPlane::sign(const Position &r, const Direction &u) const {
   }
 }
 
-double XPlane::distance(const Position &r, const Direction &u,
+double XPlane::distance(const Position& r, const Direction& u,
                         bool on_surf) const {
   double diff = x0 - r.x();
   if (on_surf || std::abs(diff) < SURFACE_COINCIDENT || u.x() == 0.)
@@ -62,7 +62,7 @@ double XPlane::distance(const Position &r, const Direction &u,
     return diff / u.x();
 }
 
-Direction XPlane::norm(const Position & /*r*/) const { return {1., 0., 0.}; }
+Direction XPlane::norm(const Position& /*r*/) const { return {1., 0., 0.}; }
 
 //===========================================================================
 // Non-Member Functions

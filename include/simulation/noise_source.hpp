@@ -45,12 +45,12 @@ class NoiseSource {
   NoiseSource() = default;
   virtual ~NoiseSource() = default;
 
-  virtual bool is_inside(const Position &r) const = 0;
+  virtual bool is_inside(const Position& r) const = 0;
 
-  virtual std::complex<double> dEt(const Position &r, double E,
+  virtual std::complex<double> dEt(const Position& r, double E,
                                    double w) const = 0;
 
-  virtual std::complex<double> dEt_Et(const Position &r, double E,
+  virtual std::complex<double> dEt_Et(const Position& r, double E,
                                       double w) const = 0;
 };
 

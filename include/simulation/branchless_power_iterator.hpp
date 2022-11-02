@@ -31,32 +31,67 @@
  * pris connaissance de la licence CeCILL, et que vous en avez accepté les
  * termes.
  *============================================================================*/
-#ifndef YPLANE_H
-#define YPLANE_H
+#ifndef BRANCHLESS_POWER_ITERATOR_H
+#define BRANCHLESS_POWER_ITERATOR_H
 
-#include <yaml-cpp/yaml.h>
+#include <simulation/cancelator.hpp>
+#include <simulation/simulation.hpp>
+#include <vector>
 
-#include <geometry/surfaces/surface.hpp>
-
-class YPlane : public Surface {
+class BranchlessPowerIterator : public Simulation {
  public:
-  YPlane(double x, BoundaryType bound, uint32_t i_id, std::string i_name);
-  ~YPlane() = default;
+  BranchlessPowerIterator(std::shared_ptr<Tallies> i_t,
+                          std::shared_ptr<Transporter> i_tr,
+                          std::vector<std::shared_ptr<Source>> src)
+      : Simulation(i_t, i_tr, src), bank(){};
+  BranchlessPowerIterator(std::shared_ptr<Tallies> i_t,
+                          std::shared_ptr<Transporter> i_tr,
+                          std::vector<std::shared_ptr<Source>> src,
+                          std::shared_ptr<Cancelator> cncl)
+      : Simulation(i_t, i_tr, src), bank(), cancelator(cncl){};
+  ~BranchlessPowerIterator() = default;
 
-  int sign(const Position& r, const Direction& u) const override;
+  void initialize() override final;
 
-  double distance(const Position& r, const Direction& u,
-                  bool on_surf) const override;
+  void run() override final;
 
-  Direction norm(const Position& r) const override;
+  void premature_kill() override final;
 
  private:
-  double y0;
+  std::vector<Particle> bank;
+  std::shared_ptr<Cancelator> cancelator = nullptr;
+  int Nnet = 0, Npos = 0, Nneg = 0, Ntot = 0;
+  int Wnet = 0, Wpos = 0, Wneg = 0, Wtot = 0;
+  int gen = 0;
+  double r_sqrd = 0.;
 
-};  // YPlane
+  void check_time(int gen);
 
-//===========================================================================
-// Non-Member Functions
-std::shared_ptr<YPlane> make_yplane(YAML::Node surface_node);
+  bool out_of_time(int gen);
+
+  void generation_output();
+
+  void write_source(std::vector<Particle>& bank, std::string source_fname);
+
+  void normalize_weights(std::vector<BankedParticle>& next_gen);
+
+  void comb_particles(std::vector<BankedParticle>& next_gen);
+
+  void perform_regional_cancellation(std::vector<BankedParticle>& next_gen);
+
+  // Entropy calculation
+  void compute_pre_cancellation_entropy(std::vector<BankedParticle>& next_gen);
+  void compute_post_cancellation_entropy(std::vector<BankedParticle>& next_gen);
+  void zero_entropy();
+
+  // Pair-distance sqrd calculation
+  double compute_pair_dist_sqrd(const std::vector<BankedParticle>& next_gen);
+
+  void print_header();
+
+  void sample_source_from_sources();
+  void load_source_from_file();
+
+};  // PowerIterator
 
 #endif

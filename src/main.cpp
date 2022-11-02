@@ -86,7 +86,7 @@ bool exists(std::string fname) {
   return file.good();
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   settings::alpha_omega_timer.start();
 
   mpi::initialize_mpi(&argc, &argv);
@@ -139,7 +139,7 @@ int main(int argc, char **argv) {
       try {
         // Begin plotting system
         plotter::plotter(input_fname);
-      } catch (const std::runtime_error &err) {
+      } catch (const std::runtime_error& err) {
         std::string mssg = err.what();
         Output::instance()->write(" FATAL ERROR: " + mssg + ".\n");
         std::exit(1);
@@ -184,7 +184,7 @@ int main(int argc, char **argv) {
     try {
       parse_input_file(args["--input"].asString());
       parsed_file = true;
-    } catch (const std::runtime_error &err) {
+    } catch (const std::runtime_error& err) {
       std::string mssg = err.what();
       Output::instance()->write(" FATAL ERROR: " + mssg + ".\n");
       parsed_file = false;

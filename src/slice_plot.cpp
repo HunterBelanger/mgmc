@@ -57,7 +57,7 @@ SlicePlot::SlicePlot(std::string fname, uint64_t pwidth, uint64_t pheight,
       rng(2617257382),
       create_color_mutex{} {}
 
-Pixel SlicePlot::get_color(const ::Cell* cell) {
+Pixel SlicePlot::get_color(::Cell* cell) {
   Pixel pixel_color = background_;
   // If pointer isn't nullpntr, get pixel
   if (cell != nullptr) {
@@ -75,7 +75,7 @@ Pixel SlicePlot::get_color(const ::Cell* cell) {
       pixel_color = cell_id_to_color[cell->id()];
     } else {
       // Color by material
-      const ::Material* material = cell->material().get();
+      const ::Material* material = cell->material();
       // Do same check twice with mutex to make thread safe
       if (material_id_to_color.find(material->id()) ==
           material_id_to_color.end()) {
@@ -187,7 +187,7 @@ void SlicePlot::generate_plot() {
 
     // Initalize the tracker
     Tracker trkr(strt, u);
-    ::Cell* cell = trkr.cell().get();
+    ::Cell* cell = trkr.cell();
     Pixel pixel_color = this->get_color(cell);
 
     uint64_t j = 0;
@@ -217,7 +217,7 @@ void SlicePlot::generate_plot() {
         trkr.move(npixels_dist);
       }
       trkr.restart_get_current();
-      cell = trkr.cell().get();
+      cell = trkr.cell();
       pixel_color = this->get_color(cell);
       if (pixels_to_bound - static_cast<double>(npixels) < 0.5) {
         uint64_t indx = i * plot_width_ + j;

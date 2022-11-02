@@ -108,7 +108,7 @@ void register_banked_particle_type() {
 #endif
 }
 
-void initialize_mpi(int *argc, char ***argv) {
+void initialize_mpi(int* argc, char*** argv) {
   timer.reset();
 
 #ifdef MGMC_USE_MPI
@@ -155,7 +155,7 @@ void synchronize() {
 #endif
 }
 
-void check_error(int err, const char *file, int line) {
+void check_error(int err, const char* file, int line) {
 #ifdef MGMC_USE_MPI
   if (err != MPI_SUCCESS) {
     // First, we should get the error string

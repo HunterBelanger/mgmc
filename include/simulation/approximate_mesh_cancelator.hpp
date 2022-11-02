@@ -44,9 +44,9 @@ class ApproximateMeshCancelator : public Cancelator {
   ApproximateMeshCancelator(Position low, Position hi, uint32_t Nx, uint32_t Ny,
                             uint32_t Nz, std::vector<double> energy_bounds);
 
-  bool add_particle(BankedParticle &p) override final;
-  void perform_cancellation(pcg32 &rng) override final;
-  std::vector<BankedParticle> get_new_particles(pcg32 &rng) override final;
+  bool add_particle(BankedParticle& p) override final;
+  void perform_cancellation(pcg32& rng) override final;
+  std::vector<BankedParticle> get_new_particles(pcg32& rng) override final;
   void clear() override final;
 
  private:
@@ -54,10 +54,10 @@ class ApproximateMeshCancelator : public Cancelator {
   std::vector<double> energy_edges;
   std::array<uint32_t, 4> shape;
   double dx, dy, dz;
-  std::unordered_map<int, std::vector<BankedParticle *>> bins;
+  std::unordered_map<int, std::vector<BankedParticle*>> bins;
 };
 
 std::shared_ptr<ApproximateMeshCancelator> make_approximate_mesh_cancelator(
-    const YAML::Node &node);
+    const YAML::Node& node);
 
 #endif

@@ -41,7 +41,7 @@
 #include <vector>
 
 MeshTally::MeshTally(Position low, Position hi, uint64_t nx, uint64_t ny,
-                     uint64_t nz, const std::vector<double> &ebounds,
+                     uint64_t nz, const std::vector<double>& ebounds,
                      std::string fname)
     : r_low{low},
       r_hi{hi},

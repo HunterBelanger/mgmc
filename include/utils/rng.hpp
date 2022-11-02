@@ -45,7 +45,7 @@ class RNG {
   //   This advances the pcg32 generator and produces a double
   //   over the interval [0,1).
   // -----------------------------------------------------------------------
-  static double rand(pcg32 &rng) { return unit_dist(rng); }
+  static double rand(pcg32& rng) { return unit_dist(rng); }
 
   // -----------------------------------------------------------------------
   // uniform(double a, double b)
@@ -54,7 +54,7 @@ class RNG {
   //
   //   f(x|a,b) = 1 / (b - a)
   // -----------------------------------------------------------------------
-  static double uniform(pcg32 &rng, double a, double b) {
+  static double uniform(pcg32& rng, double a, double b) {
     std::uniform_real_distribution<double> dist(a, b);
     return dist(rng);
   }
@@ -66,7 +66,7 @@ class RNG {
   //
   //   f(x|mu,sigma) = (1/(sigma*sqrt(2*pi))) * exp(-0.5*((x - mu)/sigma)^2)
   // -----------------------------------------------------------------------
-  static double normal(pcg32 &rng, double mu, double sigma) {
+  static double normal(pcg32& rng, double mu, double sigma) {
     std::normal_distribution<double> dist(mu, sigma);
     return dist(rng);
   }
@@ -78,7 +78,7 @@ class RNG {
   //
   //   f(x|lambda) = lambda * exp(-lambda * x)
   // -----------------------------------------------------------------------
-  static double exponential(pcg32 &rng, double lambda) {
+  static double exponential(pcg32& rng, double lambda) {
     if (lambda == 0.) return INF;
 
     std::exponential_distribution<double> dist(lambda);
@@ -92,12 +92,12 @@ class RNG {
   //
   //   P(i|w_0, w_1, ... w_k) = w_i / Sum[j = 1 to k](w_j)
   // -----------------------------------------------------------------------
-  static int discrete(pcg32 &rng, const double *begin, const double *end) {
+  static int discrete(pcg32& rng, const double* begin, const double* end) {
     std::discrete_distribution<int> dist(begin, end);
     return dist(rng);
   }
 
-  static int discrete(pcg32 &rng, const std::vector<double> &weights) {
+  static int discrete(pcg32& rng, const std::vector<double>& weights) {
     std::discrete_distribution<int> dist(weights.begin(), weights.end());
     return dist(rng);
   }

@@ -42,10 +42,10 @@ MonoEnergetic::MonoEnergetic(double energy) : energy_(energy) {
   }
 }
 
-double MonoEnergetic::sample(pcg32 & /*rng*/) const { return energy_; }
+double MonoEnergetic::sample(pcg32& /*rng*/) const { return energy_; }
 
 std::shared_ptr<MonoEnergetic> make_mono_energetic_distribution(
-    const YAML::Node &node) {
+    const YAML::Node& node) {
   if (!node["energy"] || !node["energy"].IsScalar()) {
     std::string mssg = "No valid energy entry to mono-energetic distribution.";
     fatal_error(mssg, __FILE__, __LINE__);
